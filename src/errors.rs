@@ -1,0 +1,77 @@
+use std::fmt::{self, Display};
+use async_trait::async_trait;
+use futures::Future;
+use poise::CreateReply;
+use poise::ReplyHandle;
+use poise::serenity_prelude as ser;
+use std::result::Result as StdResult;
+use crate::PoiseContext;
+use crate::pg;
+
+mod contextualizable;
+pub use contextualizable::WithContext;
+pub use contextualizable::Contextualizable;
+
+use self::contextualizable::impl_contextualizable_error;
+
+
+mod conversions;
+mod impl_display;
+
+pub type Result<T> = StdResult<T, WithContext<Error>>;
+pub type CmdResult<T> = StdResult<T, WithContext<OptError<InternalError>>>;
+
+#[derive(Clone, Copy, Debug)]
+pub struct OptError<T>(pub Option<T>);
+
+pub enum Context {
+	Log(crate::log::LogErrorContext),
+	Webhook(crate::webhook::WebhookErrorContext),
+	Replication(crate::msgreplication::ReplicationErrorContext),
+}
+
+
+#[derive(Debug)]
+pub enum InternalError {
+	SerenityError(ser::Error),
+	DatabaseError(pg::Error),
+	Bb8Error(bb8::RunError<pg::Error>),
+	InvalidByteADiscordIDFormat
+}
+
+#[derive(Debug)]
+pub enum Error {
+	MissingPermission(ser::Permissions),
+	RoleNotFound,
+	MemberNotFound,
+	ChannelNotFound,
+	MessageAlreadyCrossposted,
+	CannotCrosspostMessage,
+
+	Log(crate::log::LogError),
+	Internal(InternalError)
+}	
+
+impl_contextualizable_error!(InternalError);
+impl_contextualizable_error!(Error);
+
+#[async_trait]
+pub trait AsyncReportErr {
+	async fn report_err<F, Fut>(self, inspector: F) -> Self
+	where F: FnOnce(String) -> Fut + Send,
+		  Fut: Future + Send;
+}
+
+#[async_trait]
+impl<T, E> AsyncReportErr for StdResult<T, E>
+where T: Send + Sync,
+	  E: Send + Sync + Display + 'static {
+	async fn report_err<F, Fut>(self, inspector: F) -> Self
+	where F: FnOnce(String) -> Fut + Send,
+		  Fut: Future + Send {
+		if let Err(e) = &self {
+			inspector(format!("Error: {e}")).await;
+		}
+		self
+	}
+}
