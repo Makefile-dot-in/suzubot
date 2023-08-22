@@ -11,6 +11,7 @@ const APP_NAME: &'static str = "Suzu";
 pub struct Data {
     webhexec: WebhookExecutor,
     dbconn: Pool<PostgresConnectionManager<pg::tls::NoTls>>,
+	logdata: log::LogData,
 }
 
 

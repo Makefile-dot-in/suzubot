@@ -24,10 +24,12 @@ pub type CmdResult<T> = StdResult<T, WithContext<OptError<InternalError>>>;
 #[derive(Clone, Copy, Debug)]
 pub struct OptError<T>(pub Option<T>);
 
+#[derive(Debug)]
 pub enum Context {
 	Log(crate::log::LogErrorContext),
 	Webhook(crate::webhook::WebhookErrorContext),
 	Replication(crate::msgreplication::ReplicationErrorContext),
+	Purge(crate::purge::PurgeErrorContext),
 }
 
 

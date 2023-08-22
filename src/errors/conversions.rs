@@ -87,3 +87,9 @@ impl From<crate::msgreplication::ReplicationErrorContext> for Context {
 		Context::Replication(replctx)
 	}
 }
+
+impl From<crate::purge::PurgeErrorContext> for Context {
+    fn from(purgectx: crate::purge::PurgeErrorContext) -> Self {
+        Context::Purge(purgectx)
+    }
+}

@@ -19,7 +19,9 @@ use futures::{FutureExt, TryFutureExt};
 use poise::serenity_prelude::guild;
 use poise::{serenity_prelude as ser, SlashArgument, SlashArgError, extract_slash_argument, ApplicationCommandOrAutocompleteInteraction, ChoiceParameter};
 use ser::Mentionable;
-use tokio::sync::RwLock;
+use std::sync::Mutex;
+use std::collections::HashSet;
+use std::borrow::Cow;
 
 
 
@@ -36,19 +38,6 @@ pub enum LogType {
     Purge,
 	#[name = "bot_config"]
 	BotConfig,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum LogEventType {
-	Delete = 0,
-	Create = 1,
-	Edit = 2,
-}
-
-impl From<LogEventType> for u8 {
-	fn from(value: LogEventType) -> u8 {
-		value as u8
-	}
 }
 
 #[derive(Debug)]
@@ -106,49 +95,49 @@ impl Display for LogError {
 
 impl StdError for LogError {}
 
+#[derive(Debug)]
+pub struct LogData {
+	monopolized_messages: Mutex<HashSet<ser::MessageId>>
+}
 
+#[derive(Debug, Clone)]
+pub struct MonopolizeGuard<'a, T: Clone + Hash + Eq> {
+	items: Vec<T>,
+	itemset: &'a Mutex<HashSet<T>>,
+}
 
-/// thread-safe map from any type to a mask of any type that supports Into<u8>
-pub struct MaskMap<T: Eq + Hash, M: Into<u8>>(RwLock<HashMap<T, u32>>, PhantomData<M>);
-
-impl<T: Eq + Hash, M: Into<u8>> MaskMap<T, M> {
-	pub fn new() -> Self {
-		Self(RwLock::new(HashMap::new()), PhantomData)
-	}
-
-	pub async fn set(&mut self, key: T, log_type: M) {
-		*self.0.write().await.entry(key).or_insert(0) |= 1 << log_type.into();
-	}
-
-	pub async fn unset(&mut self, key: T, log_type: M) {
-		use hash_map::Entry::*;
-		match self.0.write().await.entry(key) {
-			Occupied(mut occ) => {
-				let mask = occ.get_mut();
-				*mask &= !(1 << log_type.into());
-				if *mask == 0 {
-					occ.remove_entry();
-				}
-			},
-			Vacant(_) => {},
+impl LogData {
+	pub fn monopolize_messages<'a, M>(&'a self, msgs: M) -> MonopolizeGuard<'a, ser::MessageId>
+	where M: IntoIterator<Item = ser::MessageId> {
+		let mut items = Vec::new();
+		let mut monmsgs = self.monopolized_messages.lock().unwrap();
+		for msg in msgs {
+			if monmsgs.insert(msg) {
+				items.push(msg);
+			}
+		}
+		MonopolizeGuard {
+			items,
+			itemset: &self.monopolized_messages
 		}
 	}
+}
 
-	pub async fn check(&mut self, key: T, log_type: M) -> bool {
-		let val = self.0.read().await.get(&key).map(|x| *x).unwrap_or(0);
-		(val >> log_type.into()) & 1 == 1
+impl<'a, T: Clone + Eq + Hash> Drop for MonopolizeGuard<'a, T> {
+    fn drop(&mut self) {
+		let mut itemg = self.itemset.lock().unwrap();
+        for item in self.items.iter() {
+			itemg.remove(item);
+		}
+    }
+}
+
+impl<'a, T: Clone + Eq + Hash> MonopolizeGuard<'a, T> {
+	pub fn items(&self) -> impl Iterator<Item = &T> {
+		self.items.iter()
 	}
 }
 
-/// prevents logging for a set of messages
-/// warning! not thread safe
-pub struct LogPreventer<T: Eq + Hash> {
-}
-
-/// A collection of [`MaskMap`] used to prevent logging of things that are already being logged.
-pub struct LogMasks {
-	pub messages: MaskMap<ser::MessageId, LogEventType>
-}
 
 async fn get_logch(
     data: &crate::Data,
@@ -310,7 +299,7 @@ pub async fn log(
 	log_type: LogType,
 	#[description = "Channel to log events. Don't specify to disable logging for the specified log_type"]
 	channel: Option<ser::ChannelId>
-) -> CmdResult<()> {
+) -> Result<()> {
 	let guild_id = ctx.guild_id().unwrap();
 	ctx.defer()
 		.await
@@ -320,22 +309,18 @@ pub async fn log(
 			set_logch(ctx.data(), guild_id, log_type, chid).await
 				.contextualize(LogErrorContext::SettingLogChannel(guild_id, log_type, chid))
 				.report_err(|err| ctx.say(err))
-				.await
-				.map_contextualized(OptError::<InternalError>::from)?;
+				.await?;
 			ctx.say(format!("Successfully set the channel for `{log_type}` to {channel_mention}",
 							channel_mention = chid.mention()))
-				.await
-				.map_err(Error::from)?;
+				.await?;
 		}
 		None => {
 			del_logch(ctx.data(), guild_id, log_type).await
 				.contextualize(LogErrorContext::DisablingLogging(guild_id, log_type))
 				.report_err(|err| ctx.say(err))
-				.await
-				.map_contextualized(OptError::<InternalError>::from)?;
+				.await?;
 			ctx.say(format!("Successfully disabled logging for `{log_type}`."))
-				.await
-				.map_err(Error::from)?;
+				.await?;
 		}
 	}
 

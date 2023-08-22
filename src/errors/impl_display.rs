@@ -17,6 +17,7 @@ impl Display for Context {
 			Log(logctx) => write!(f, "{logctx}"),
             Webhook(webhctx) => write!(f, "{webhctx}"),
             Replication(repctx) => write!(f, "{repctx}"),
+            Purge(purgectx) => write!(f, "{purgectx}"),
 		}
     }
 }
