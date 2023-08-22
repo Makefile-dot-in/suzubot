@@ -1,26 +1,23 @@
 use crate::comp_util::{ask_yn, edit};
-use crate::errors::{CmdResult, Contextualizable, Error, OptError, InternalError, WithContext, AsyncReportErr, Result};
+use crate::errors::{Contextualizable, Error, AsyncReportErr, Result};
 use crate::log::{LogErrorContext, LogType};
 
 use super::PoiseContext;
 
 use chrono::{Duration, Utc};
 use futures::future;
-use futures::{Stream, StreamExt, TryStream, TryStreamExt, TryFutureExt};
+use futures::{Stream, StreamExt, TryStreamExt, TryFutureExt};
 use itertools::Itertools;
 use poise::ReplyHandle;
-use poise::serenity_prelude::{self as ser, ExecuteWebhook};
+use poise::serenity_prelude::{self as ser};
 use ser::Mentionable;
 use regex::Regex;
-use reqwest::header::HeaderMap;
+
 use std::fmt::Display;
-use std::time::Duration as StdDuration;
-use std::{collections::HashMap, ops::Index, vec};
-use tokio::{
-    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
-    time::Instant,
-};
-use std::borrow::Cow;
+
+use std::{vec};
+
+
 use std::future::Future;
 use std::fmt;
 

@@ -3,7 +3,7 @@ use std::future::Future;
 use std::time::Duration as StdDuration;
 use std::pin::Pin;
 use std::borrow::Cow;
-use crate::{errors::{Result, Contextualizable}, PoiseContext};
+use crate::{errors::{Result}, PoiseContext};
 
 pub fn edit<'a>(
 	handle: &'a ReplyHandle,

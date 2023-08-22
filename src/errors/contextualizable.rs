@@ -1,4 +1,4 @@
-use std::{fmt::{self, Display}, process::Output};
+use std::{fmt::{self, Display}};
 
 use super::{Context, OptError};
 

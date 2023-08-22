@@ -4,7 +4,7 @@ use bb8_postgres::PostgresConnectionManager;
 pub(crate) use postgres_types as pgtyp;
 use webhook::WebhookExecutor;
 pub(crate) use tokio_postgres as pg;
-use errors::{OptError, InternalError, WithContext, Error};
+use errors::{WithContext, Error};
 
 const APP_NAME: &'static str = "Suzu";
 
