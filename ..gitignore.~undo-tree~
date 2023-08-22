@@ -1,5 +1,6 @@
 (undo-tree-save-format-version . 1)
-"32068abbf3fd83bba325c3961ac4af1fbf83d0d8"
+"f919daeb77d683eb1a0ce62dc4b98e7000a8f1e8"
 [nil nil nil nil (25828 32370 301148 925000) 0 nil]
-([nil current ((10 . 12) ("." . -10) (undo-tree-id0 . -1) (undo-tree-id1 . -1) 11 (9 . 11) (t 25800 2265 950195 195000)) nil (25828 32370 301145 980000) 0 nil])
+([nil nil ((10 . 12) ("." . -10) (undo-tree-id0 . -1) (undo-tree-id1 . -1) 11 (9 . 11) (t 25800 2265 950195 195000)) nil (25828 32370 301145 980000) 0 nil])
+([nil current ((30 . 33) (19 . 30) (16 . 19) (15 . 16) (9 . 12) (t 25828 32370 309784 464000)) nil (25828 32469 544937 35000) 0 nil])
 nil
