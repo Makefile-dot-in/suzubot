@@ -1,6 +1,3 @@
-
-
-
 use std::fmt::Display;
 use std::error::Error as StdError;
 use std::hash::Hash;
@@ -15,9 +12,8 @@ use crate::errors::{Result, Error, InternalError, Contextualizable, AsyncReportE
 use crate::msgreplication;
 use crate::linkable::Linkable;
 
-use futures::{FutureExt, TryFutureExt};
 
-use poise::{serenity_prelude as ser, SlashArgument, ChoiceParameter};
+use poise::{serenity_prelude as ser, ChoiceParameter};
 use ser::Mentionable;
 use std::sync::Mutex;
 use std::collections::HashSet;
