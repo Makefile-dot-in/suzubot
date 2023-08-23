@@ -1,12 +1,12 @@
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow};
 use poise::serenity_prelude as ser;
 use crate::errors::global_handler::on_error;
 use crate::log::LogData;
 use crate::webhook::WebhookExecutor;
 use std::collections::{HashSet, HashMap};
-use std::env;
-use std::error::Error as StdError;
-use std::str::FromStr;
+
+
+
 use serde::{Deserialize, Serialize};
 use crate::{CustomCommandData, DEF_CMD_DATA, PoiseContext};
 

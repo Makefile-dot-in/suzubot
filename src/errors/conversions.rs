@@ -1,7 +1,7 @@
 use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
 use crate::pg;
 
-use poise::{serenity_prelude as ser, FrameworkError};
+use poise::{serenity_prelude as ser};
 
 macro_rules! conversions {
 	// square brackets because angle brackets do not start a tree

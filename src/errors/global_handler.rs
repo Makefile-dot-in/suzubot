@@ -4,7 +4,7 @@ use poise::serenity_prelude as ser;
 use crate::errors::LogError;
 
 use super::Error;
-use super::{LoggedFrameworkError, LoggedMappedWithContext, LoggedError};
+use super::{LoggedFrameworkError};
 
 fn suzu_error_level(err: &Error) -> log::Level {
 	match err {
