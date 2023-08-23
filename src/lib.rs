@@ -39,12 +39,15 @@ impl CustomCommandData {
 pub struct Data {
 	bot_name: String,
     webhexec: WebhookExecutor,
-    dbconn: Pool<PostgresConnectionManager<pg::tls::NoTls>>,
+    dbconn: Pool<PostgresConnectionManager<DatabaseTls>>,
 	logdata: log::LogData,
 }
 
 type SuzuError = WithContext<Error>;
 type PoiseContext<'a> = poise::Context<'a, Data, WithContext<Error>>;
+type DatabaseTls = pg::tls::NoTls;
+
+fn db_tls() -> DatabaseTls { pg::tls::NoTls }
 
 pub mod log;
 pub mod purge;
@@ -52,5 +55,6 @@ pub mod webhook;
 pub mod msgreplication;
 pub mod errors;
 pub mod init;
+pub mod migrations;
 mod linkable;
 mod comp_util;

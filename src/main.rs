@@ -11,8 +11,12 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = env!("CARGO_PKG_NAME");
 
 const OPTIONS: &[(&str, &[&str], &str)] = &[
-	("c", &["PATH"], "Specifies the config file."),
-	("h", &[],       "Prints this help message.")
+	("c",               &["PATH"],   "Specifies the config file."),
+	("list_migrations", &[],         "Lists all migrations."),
+	("migrate",         &["TARGET"], "Migrates the database for the selected profile to TARGET."),
+	("init",            &[],         "Initializes the database for the selected profile."),
+	("info",            &[],         "Prints database info"),
+	("h",               &[],         "Prints this help message."),
 ];
 
 struct HelpString<'a> {
@@ -24,15 +28,16 @@ impl<'a> fmt::Display for HelpString<'a> {
 		let executable = self.executable;
 		write!(f, "{NAME} v{VERSION}
 Usage:
- {executable} [OPTIONS] [PROFILE]
-Options:")?;
+ {executable} [OPTIONS] [--] [PROFILE]
+Options:
+")?;
 
 		let inherent_option_desc = OPTIONS.iter()
 			.map(|&(param, args, _)| format!("-{param} {args_joined}", args_joined = args.iter().join(" ")))
 			.collect::<Vec<_>>();
 		let max_inh_option_desc = inherent_option_desc.iter().map(String::len).max().unwrap_or(0);
 		for (inh_opt_desc, (_, _, descr)) in inherent_option_desc.into_iter().zip(OPTIONS) {
-			write!(f, "{inh_opt_desc:<max_inh_option_desc$} {descr}")?;
+			write!(f, " {inh_opt_desc:<max_inh_option_desc$} {descr}\n")?;
 		}
 		Ok(())
 	}
@@ -82,7 +87,7 @@ async fn main() {
 
 		let config_path = opt_args
 			.get("c")
-			.and_then(|m| m.get("PATH"))
+			.map(|m| &m["PATH"])
 			.map(|p| p.as_str())
 			.unwrap_or("suzu.toml");
 
@@ -97,14 +102,35 @@ async fn main() {
 		};
 		
 		let config: Config = toml::from_str(&config_str)
-			.context("parsing context")?;
+			.context("error parsing config")?;
 
 		let profile = config.get_profile(profile_name).context("config")?;
+
+		if opt_args.contains_key("list_migrations") {
+			suzubot_ng::migrations::list_migrations()?;
+			return;
+		}
+
+		if let Some(migrate_opts) = opt_args.get("migrate") {
+			let target = migrate_opts["TARGET"].parse::<u16>().context("parsing migration target")?;
+			suzubot_ng::migrations::migrate_to(profile, target).await?;
+			return;
+		}
+
+		if opt_args.contains_key("init") {
+			suzubot_ng::migrations::initialize_db(profile).await?;
+			return;
+		}
+
+		if opt_args.contains_key("info") {
+			suzubot_ng::migrations::print_database_info(profile).await?;
+			return;
+		}
 
 		suzubot_ng::init::run(profile).await?;
 	};
 
 	if let Err(err) = init_res {
-		log::error!("fatal error: {err}");
+		log::error!("fatal error: {err:#}");
 	}
 }

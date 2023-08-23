@@ -25,7 +25,7 @@ pub struct Profile {
 	token: String,
 	#[serde(default)]
 	test_mode: bool,
-	dbconnstr: String,
+	pub(crate) dbconnstr: String,
 }
 
 impl Profile {
@@ -78,7 +78,7 @@ pub async fn run(profile: Profile) -> Result<(), anyhow::Error> {
 					webhexec: WebhookExecutor::new(),
 					dbconn: {
 						let manager = bb8_postgres::PostgresConnectionManager
-							::new_from_stringlike(profile.dbconnstr, crate::pg::NoTls)?;
+							::new_from_stringlike(profile.dbconnstr, crate::db_tls())?;
 						bb8::Pool::builder().build(manager).await?
 					},
 					logdata: LogData::new(),
