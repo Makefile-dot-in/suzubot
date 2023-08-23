@@ -6,15 +6,44 @@ use webhook::WebhookExecutor;
 pub(crate) use tokio_postgres as pg;
 use errors::{WithContext, Error};
 
-const APP_NAME: &'static str = "Suzu";
+pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
+	purge::purge,
+	log::log,
+	init::register
+];
 
+#[derive(Debug)]
+struct CustomCommandData {
+	test_mode: bool,
+	__non_exhaustive: (),
+}
+
+const DEF_CMD_DATA: CustomCommandData = CustomCommandData {
+	test_mode: false,
+	__non_exhaustive: (),
+};
+
+impl Default for CustomCommandData {
+	fn default() -> Self {
+		DEF_CMD_DATA
+	}
+}
+
+impl CustomCommandData {
+	pub fn from_command_data<'a>(cmd: &'a poise::Command<Data, SuzuError>) -> &'a CustomCommandData {
+		cmd.custom_data.downcast_ref::<CustomCommandData>().unwrap_or(&DEF_CMD_DATA)
+	}
+}
+
+#[derive(Debug)]
 pub struct Data {
+	bot_name: String,
     webhexec: WebhookExecutor,
     dbconn: Pool<PostgresConnectionManager<pg::tls::NoTls>>,
 	logdata: log::LogData,
 }
 
-
+type SuzuError = WithContext<Error>;
 type PoiseContext<'a> = poise::Context<'a, Data, WithContext<Error>>;
 
 pub mod log;
@@ -22,5 +51,6 @@ pub mod purge;
 pub mod webhook;
 pub mod msgreplication;
 pub mod errors;
+pub mod init;
 mod linkable;
 mod comp_util;

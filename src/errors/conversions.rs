@@ -1,7 +1,7 @@
 use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
 use crate::pg;
 
-use poise::serenity_prelude as ser;
+use poise::{serenity_prelude as ser, FrameworkError};
 
 macro_rules! conversions {
 	// square brackets because angle brackets do not start a tree
@@ -93,3 +93,4 @@ impl From<crate::purge::PurgeErrorContext> for Context {
         Context::Purge(purgectx)
     }
 }
+

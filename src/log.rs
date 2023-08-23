@@ -13,6 +13,7 @@ use crate::msgreplication;
 use crate::linkable::Linkable;
 
 
+use poise::serenity_prelude::CreateEmbed;
 use poise::{serenity_prelude as ser, ChoiceParameter};
 use ser::Mentionable;
 use std::sync::Mutex;
@@ -94,6 +95,14 @@ impl StdError for LogError {}
 #[derive(Debug)]
 pub struct LogData {
 	monopolized_messages: Mutex<HashSet<ser::MessageId>>
+}
+
+impl LogData {
+	pub fn new() -> Self {
+		Self {
+			monopolized_messages: Mutex::new(HashSet::new())
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -204,8 +213,8 @@ where F: for<'a> FnOnce(&'a mut ser::CreateEmbed) -> &'a mut ser::CreateEmbed + 
 		.contextualize(LogErrorContext::InChannel(logch))
 }
 
-pub(crate) async fn log_purge(
-	ctx: &PoiseContext<'_>,
+pub(crate) async fn log_purge<M>(
+	ctx: PoiseContext<'_>,
 	guild: ser::GuildId,
 	limit: u16,
 	total: u16,
@@ -215,8 +224,9 @@ pub(crate) async fn log_purge(
 	after: Option<ser::MessageId>,
 	pattern: Option<String>,
 	reason: Option<String>,
-	messages: impl IntoIterator<Item = ser::Message> + Send
-) -> Result<()> {
+	messages: M
+) -> Result<()>
+where M: IntoIterator<Item = ser::Message> {
 	let message = post_log(
 		ctx,
 		ctx.data(),
@@ -277,6 +287,7 @@ pub(crate) async fn log_purge(
 
 		msgreplication::replicate_messages(
 			ctx,
+			&ctx.data().bot_name,
 			&ctx.data().webhexec,
 			message.channel_id,
 			Some(thread),
@@ -285,6 +296,23 @@ pub(crate) async fn log_purge(
 		).await?
 	};
 	result.contextualize(LogErrorContext::InChannel(message.channel_id))
+}
+
+pub async fn log_bot_config(
+	ctx: PoiseContext<'_>,
+	setting: impl ToString + Send,
+	builder: impl FnOnce(&mut CreateEmbed) -> &mut CreateEmbed + Send
+) -> Result<()> {
+	post_log(
+		ctx,
+		ctx.data(),
+		ctx.guild_id().unwrap(),
+		LogType::Purge,
+		|e| {
+			builder(e.field("User", ctx.author().mention(), true).field("Setting", setting, true))
+		}
+	).await?;
+	Ok(())
 }
 
 /// Sets the channel for a log type.
@@ -320,5 +348,14 @@ pub async fn log(
 		}
 	}
 
+
+	log_bot_config(ctx, "log", |e| {
+		e.field("Log type", log_type, true);
+		match channel {
+			Some(chid) => e.field("State", "Enabled", true)
+				.field("Channel", chid.mention(), true),
+			None => e.field("State", "Disabled", true)
+		}
+	}).await.ok();
 	Ok(())
 }

@@ -75,6 +75,7 @@ impl WebhookExecutionResult for ser::Message {
 
 /// webhook executor that handles thread id which serenity won't
 /// won't be needed when serenity hits 0.12
+#[derive(Debug)]
 pub struct WebhookExecutor {
     client: reqwest::Client,
     routes: RwLock<HashMap<ser::WebhookId, Mutex<Instant>>>,

@@ -2,7 +2,8 @@ use std::fmt::{Display};
 use async_trait::async_trait;
 use futures::Future;
 
-
+use std::error::Error as StdError;
+use poise::FrameworkError;
 use poise::serenity_prelude as ser;
 use std::result::Result as StdResult;
 
@@ -17,12 +18,25 @@ use self::contextualizable::impl_contextualizable_error;
 
 mod conversions;
 mod impl_display;
+pub(crate) mod global_handler;
 
 pub type Result<T> = StdResult<T, WithContext<Error>>;
 pub type CmdResult<T> = StdResult<T, WithContext<OptError<InternalError>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct OptError<T>(pub Option<T>);
+
+struct LoggedFrameworkError<'a, 'b>(&'a FrameworkError<'b, crate::Data, crate::SuzuError>);
+
+#[derive(Debug, Clone, Copy)]
+struct LoggedMappedWithContext<'a, E, F>(&'a WithContext<E>, fn(&'a E) -> F)
+where E: Contextualizable;
+
+#[derive(Debug, Clone, Copy)]
+struct LoggedError<'a>(&'a Error);
+
+#[derive(Debug)]
+struct LoggedContext<'a>(crate::PoiseContext<'a>);
 
 #[derive(Debug)]
 pub enum Context {
@@ -52,7 +66,9 @@ pub enum Error {
 
 	Log(crate::log::LogError),
 	Internal(InternalError)
-}	
+}
+
+impl StdError for Error {}
 
 impl_contextualizable_error!(InternalError);
 impl_contextualizable_error!(Error);
@@ -75,5 +91,17 @@ where T: Send + Sync,
 			inspector(format!("Error: {e}")).await;
 		}
 		self
+	}
+}
+
+pub trait LogError {
+	fn logerr(self);
+}
+
+impl<T, E: Display> LogError for StdResult<T, E> {
+	fn logerr(self) {
+		if let Err(e) = self {
+			log::info!("{e}");
+		}
 	}
 }

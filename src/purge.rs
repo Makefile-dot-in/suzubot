@@ -121,7 +121,7 @@ pub async fn purge(
 	let delfut = delete_messages(ctx, ctx.channel_id(), messageids)
 		.map_err(|e| e.contextualize(PurgeErrorContext::Deleting(ctx.channel_id())));
 	let logfut = crate::log::log_purge(
-		&ctx,
+		ctx,
 		ctx.guild_id().unwrap(),
 		limit,
 		messages.len()
@@ -129,7 +129,7 @@ pub async fn purge(
 			.unwrap(),
 		inlast,
 		author.map(|a| a.id),
-	before.map(|b| b.id),
+		before.map(|b| b.id),
 		after.map(|a| a.id),
 		pattern,
 		reason,

@@ -14,11 +14,12 @@ bb8 = "0.8.1"
 bb8-postgres = "0.8.1"
 tokio-postgres = "0.7.8"
 postgres-types = { version = "0.2.5", features = ["derive", "array-impls"] }
-dotenvy = "0.15"
 reqwest = "0.11.8"
-tokio = { version = "1.29.1", features = ["sync"] }
+tokio = { version = "1.29.1", features = ["sync", "rt-multi-thread"] }
 anyhow = "1.0.72"
 log = "0.4.19"
 env_logger = "0.10.0"
 async-trait = "0.1.72"
 itertools = "0.11.0"
+toml = "0.7.6"
+serde = "1.0.185"

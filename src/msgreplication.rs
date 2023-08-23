@@ -44,18 +44,21 @@ fn linkable_message_to_link((guildid, channelid, messageid): LinkableMessage) ->
 
 /// replicates messages into a channel.
 /// `channel` must be a text channel, and `thread`, if `Some`, must be a thread
-pub async fn replicate_messages<C>(
-	http: impl AsRef<ser::Http>,
+pub async fn replicate_messages<H, C, M>(
+	http: H,
+	bot_name: &str,
 	whexec: &WebhookExecutor,
 	channel: impl Into<ser::ChannelId>,
 	thread: Option<impl Into<ser::ChannelId>>,
-	msgs: impl IntoIterator<Item = ser::Message>,
+	msgs: M,
 	mut customize_builder: C
 ) -> Result<()>
-where C: for<'a, 'b> FnMut(&'a mut ser::ExecuteWebhook<'b>) -> &'a mut ser::ExecuteWebhook<'b> {
+where C: for<'a, 'b> FnMut(&'a mut ser::ExecuteWebhook<'b>) -> &'a mut ser::ExecuteWebhook<'b>,
+	  H: AsRef<ser::Http>,
+	  M: IntoIterator<Item = ser::Message> {
 	let thread = thread.map(Into::into);
 	let channel = channel.into();
-	let webhook = create_or_return_webhook_for_channel(&http, channel, crate::APP_NAME)
+	let webhook = create_or_return_webhook_for_channel(&http, channel, bot_name)
 		.await
 		.contextualize(ReplicationErrorContext::CreatingWebhookForReplication)?;
 	let mut referenced: HashMap<ser::MessageId, LinkableMessage> = HashMap::new();

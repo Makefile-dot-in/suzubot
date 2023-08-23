@@ -1,12 +1,16 @@
-use std::{fmt::{self, Display}};
+use std::fmt::{self, Display};
+use std::error::Error as StdError;
 
 use super::{Context, OptError};
 
 /// adds context to any error
+#[derive(Debug)]
 pub struct WithContext<E: Contextualizable> {
 	pub contexts: Vec<Context>,
 	pub error: E,
 }
+
+impl<E: StdError + Contextualizable> StdError for WithContext<E> {}
 
 impl<E: Display + Contextualizable> Display for WithContext<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
