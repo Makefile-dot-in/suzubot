@@ -94,17 +94,21 @@ async fn main() {
 		let config_str = read_to_string(config_path).await
 			.with_context(|| format!("failed to open config ({config_path})"))?;
 
-		let profile_name = match &position_args[..] {
-			[profile] => Some(profile.as_str()),
-			[] => None,
-			[_, trailing@..] =>
-				Err(anyhow!("trailing arguments: {trailing_str}", trailing_str = trailing.iter().join(" ")))?,
-		};
-		
 		let config: Config = toml::from_str(&config_str)
 			.context("error parsing config")?;
 
-		let profile = config.get_profile(profile_name).context("config")?;
+
+		let profile_name_opt = match &position_args[..] {
+			[profile] => Some(profile.as_str()),
+			[] => None,
+			[_, trailing@..] =>
+				Err(anyhow!("trailing arguments: {trailing_str}",
+							trailing_str = trailing.iter().join(" ")))?,
+		};
+
+		let profile_name = config.get_profile_name(profile_name_opt).to_owned();
+		
+		let profile = config.get_profile(&profile_name).context("config")?;
 
 		if opt_args.contains_key("list_migrations") {
 			suzubot_ng::migrations::list_migrations()?;
@@ -127,6 +131,7 @@ async fn main() {
 			return;
 		}
 
+		log::info!("Starting profile {profile_name}");
 		suzubot_ng::init::run(profile).await?;
 	};
 

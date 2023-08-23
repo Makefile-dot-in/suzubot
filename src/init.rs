@@ -48,8 +48,11 @@ impl Config {
 		"default".to_owned()
 	}
 
-	pub fn get_profile(mut self, name: Option<&str>) -> Result<Profile, anyhow::Error> {
-		let name = name.unwrap_or(&self.default);
+	pub fn get_profile_name<'a>(&'a self, name: Option<&'a str>) -> &'a str {
+		name.unwrap_or(&self.default)
+	}
+
+	pub fn get_profile(mut self, name: &str) -> Result<Profile, anyhow::Error> {
 		self.profiles.remove(name)
 			.ok_or_else(|| anyhow!("{name}: profile not found"))
 	}
