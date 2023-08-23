@@ -22,11 +22,10 @@ struct HelpString<'a> {
 impl<'a> fmt::Display for HelpString<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let executable = self.executable;
-		write!(f, "{NAME} v{VERSION} \
-                   Usage: {executable} [OPTIONS] [PROFILE] \
-				   \
-				   Options:\
-				   ")?;
+		write!(f, "{NAME} v{VERSION}
+Usage:
+ {executable} [OPTIONS] [PROFILE]
+Options:")?;
 
 		let inherent_option_desc = OPTIONS.iter()
 			.map(|&(param, args, _)| format!("-{param} {args_joined}", args_joined = args.iter().join(" ")))
