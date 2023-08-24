@@ -22,15 +22,14 @@ use std::collections::HashSet;
 
 
 
-pub const GET_LOGCH: &str = "SELECT channel_id FROM log_channels WHERE server_id = $1 AND log_typ = $2;";
-pub const SET_LOGCH: &str = "INSERT INTO log_channels (server_id, log_typ, channel_id)
+pub const GET_LOGCH: &str = "SELECT channel_id FROM log_channels WHERE server_id = $1 AND log_type = $2;";
+pub const SET_LOGCH: &str = "INSERT INTO log_channels (server_id, log_type, channel_id)
    VALUES ($1, $2, $3)
    ON CONFLICT ON CONSTRAINT log_channels_pkey
      DO UPDATE SET channel_id = EXCLUDED.channel_id;";
-pub const DEL_LOGCH: &str = "DELETE FROM log_channels WHERE server_id = $1 AND log_typ = $2;";
+pub const DEL_LOGCH: &str = "DELETE FROM log_channels WHERE server_id = $1 AND log_type = $2;";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ToSql, FromSql, ChoiceParameter)]
-#[postgres(name = "logtype")]
 pub enum LogType {
 	#[name = "purge"]
     Purge,
@@ -308,7 +307,7 @@ pub async fn log_bot_config(
 		ctx,
 		ctx.data(),
 		ctx.guild_id().unwrap(),
-		LogType::BotConfig,
+		LogType::Purge,
 		|e| {
 			builder(e.field("User", ctx.author().mention(), true).field("Setting", setting, true))
 		}

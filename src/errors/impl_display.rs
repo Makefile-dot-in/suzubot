@@ -1,6 +1,5 @@
 use std::fmt::{self, Display};
 use crate::errors::Contextualizable;
-use poise::serenity_prelude as ser;
 
 use super::{Context, InternalError, OptError, Error, LoggedFrameworkError, LoggedContext, LoggedError, LoggedMappedWithContext, WithContext};
 
@@ -29,15 +28,6 @@ impl Display for InternalError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use InternalError::*;
 		match self {
-			// the Display impl for ser::HttpError doesn't report _the actual error_ for Request. why?
-			// i don't fucking know. just to spite me i guess
-			// also why _the fuck_ is ser::Error::Http.0 in a Box???????
-			SerenityError(ser::Error::Http(httperr)) => match &**httperr {
-				ser::HttpError::Request(requesterr) =>
-					write!(f, "Serenity HTTP error: {requesterr}"),
-				err =>
-					write!(f, "Serenity HTTP error: {err}"),
-			}
 			SerenityError(err) => write!(f, "Serenity error: {err}"),
 			DatabaseError(err) => write!(f, "Database error: {err}"),
 			Bb8Error(err) => write!(f, "bb8 error: {err}"),

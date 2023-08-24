@@ -9,12 +9,10 @@ use errors::{WithContext, Error};
 pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
 	purge::purge,
 	log::log,
-	init::register,
-	comp_util::component_test,
-	purge::message_stream_test,
+	init::register
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct CustomCommandData {
 	test_mode: bool,
 	__non_exhaustive: (),
@@ -25,9 +23,6 @@ const DEF_CMD_DATA: CustomCommandData = CustomCommandData {
 	__non_exhaustive: (),
 };
 
-fn cmd_data() -> CustomCommandData { DEF_CMD_DATA }
-
-
 impl Default for CustomCommandData {
 	fn default() -> Self {
 		DEF_CMD_DATA
@@ -37,13 +32,6 @@ impl Default for CustomCommandData {
 impl CustomCommandData {
 	pub fn from_command_data<'a>(cmd: &'a poise::Command<Data, SuzuError>) -> &'a CustomCommandData {
 		cmd.custom_data.downcast_ref::<CustomCommandData>().unwrap_or(&DEF_CMD_DATA)
-	}
-
-	pub fn test_mode(self) -> Self {
-		Self {
-			test_mode: true,
-			..self
-		}
 	}
 }
 

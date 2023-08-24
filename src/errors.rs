@@ -29,11 +29,11 @@ pub struct OptError<T>(pub Option<T>);
 struct LoggedFrameworkError<'a, 'b>(&'a FrameworkError<'b, crate::Data, crate::SuzuError>);
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LoggedMappedWithContext<'a, E, F>(pub &'a WithContext<E>, pub fn(&'a E) -> F)
+struct LoggedMappedWithContext<'a, E, F>(&'a WithContext<E>, fn(&'a E) -> F)
 where E: Contextualizable;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LoggedError<'a>(pub &'a Error);
+struct LoggedError<'a>(&'a Error);
 
 #[derive(Debug)]
 struct LoggedContext<'a>(crate::PoiseContext<'a>);

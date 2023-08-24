@@ -181,8 +181,6 @@ pub async fn initialize_db(profile: crate::init::Profile) -> anyhow::Result<()> 
 	// will initialize the database to the newest migration.
 	transaction.batch_execute(UP_MIGRATIONS).await
 		.context("running initialization statements")?;
-	transaction.commit().await?;
-	log::info!("Database initialization successful");
 	Ok(())
 }
 
@@ -191,11 +189,11 @@ pub async fn print_database_info(profile: crate::init::Profile) -> anyhow::Resul
 		.context("connecting to database")?;
 
 	let last_migration_opt = get_last_migration(&client).await
-		.inspect_err(|err| log::warn!("failed to get current migration: {err}"))
+		.inspect_err(|err| log::error!("failed to get current migration: {err}"))
 		.ok();
 	println!("Database: {connstr}", connstr = profile.dbconnstr);
 	if let Some(last_migration) = last_migration_opt {
-		println!("Current migration: {last_migration:0<3}");
+		println!("Current migration: {last_migration}");
 	}
 	Ok(())
 }

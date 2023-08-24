@@ -1,17 +1,16 @@
-use anyhow::anyhow;
-use poise::{serenity_prelude as ser, PrefixFrameworkOptions};
+use anyhow::{anyhow};
+use poise::serenity_prelude as ser;
 use crate::errors::global_handler::on_error;
 use crate::log::LogData;
 use crate::webhook::WebhookExecutor;
 use std::collections::{HashSet, HashMap};
-use crate::cmd_data;
 
 
 
 use serde::{Deserialize, Serialize};
-use crate::{CustomCommandData, PoiseContext};
+use crate::{CustomCommandData, DEF_CMD_DATA, PoiseContext};
 
-#[poise::command(prefix_command, owners_only, custom_data = "cmd_data().test_mode()")]
+#[poise::command(prefix_command, owners_only, custom_data = "CustomCommandData { test_mode: true, ..DEF_CMD_DATA }")]
 pub async fn register(ctx: PoiseContext<'_>) -> crate::errors::Result<()> {
 	Ok(poise::builtins::register_application_commands_buttons(ctx).await?)
 }
@@ -26,7 +25,6 @@ pub struct Profile {
 	token: String,
 	#[serde(default)]
 	test_mode: bool,
-	prefix: Option<String>,
 	pub(crate) dbconnstr: String,
 }
 
@@ -65,15 +63,10 @@ pub async fn run(profile: Profile) -> Result<(), anyhow::Error> {
 		.options(poise::FrameworkOptions {
 			commands: super::COMMANDS.iter()
 				.map(|f| f())
-				.filter(|cmd| profile.test_mode ||
-						!CustomCommandData::from_command_data(cmd).test_mode)
+				.filter(|cmd| CustomCommandData::from_command_data(cmd).test_mode)
 				.collect::<Vec<_>>(),
 			owners: profile.owner_ids,
 			on_error: |err| Box::pin(on_error(err)),
-			prefix_options: PrefixFrameworkOptions {
-				prefix: profile.prefix,
-				..Default::default()
-			},
 			..Default::default()
 		})
 		.token(profile.token)

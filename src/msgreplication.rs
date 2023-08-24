@@ -4,10 +4,9 @@ use itertools::Itertools;
 use poise::serenity_prelude::{self as ser, ExecuteWebhook, Mentionable};
 use reqwest::Url;
 use std::fmt::{self, Display};
-use crate::errors::{Result, Contextualizable, Error, LogError, LoggedError, LoggedMappedWithContext};
+use crate::errors::{Result, Contextualizable, Error};
 use crate::webhook::{create_or_return_webhook_for_channel, WebhookExecutor};
 use log::error;
-use std::result::Result as StdResult;
 
 type LinkableMessage = (Option<ser::GuildId>, ser::ChannelId, ser::MessageId);
 
@@ -70,22 +69,14 @@ where C: for<'a, 'b> FnMut(&'a mut ser::ExecuteWebhook<'b>) -> &'a mut ser::Exec
 		let referencedmsg = msg.referenced_message
 			.as_ref()
 			.map(|r| referenced.get(&r.id).map(|x| *x).unwrap_or((r.guild_id, r.channel_id, r.id)));
-		let newres: Result<ser::Message> = whexec.execute(&webhook, thread, |w| customize_builder(msg_to_webhook(w, msg, referencedmsg)))
+		let newmsg: ser::Message = whexec.execute(&webhook, thread, |w| customize_builder(msg_to_webhook(w, msg, referencedmsg)))
 			.await
 			.map_err(Error::from)
 			.contextualize(ReplicationErrorContext::ReplicatingMessage {
 				message: (guild_id, channel_id, id),
 				target: channel,
 				thread,
-			});
-		let newmsg = match newres {
-			Ok(msg) => msg,
-			Err(err) => {
-				log::info!("logging error: {loggable_err}",
-						   loggable_err = LoggedMappedWithContext(&err, LoggedError));
-				continue
-			}
-		};
+			})?;
 		referenced.insert(id, (newmsg.guild_id, newmsg.channel_id, newmsg.id));
 	}
 	Ok(())
@@ -212,7 +203,7 @@ fn convey_message_content<'a, 'b>(
 					Some(interaction) => interaction_to_embed(e, interaction),
 					None => e.description("Used an interaction.")
 				};
-				fields.title("#️⃣ Used Slash Command").color(ser::Color::BLITZ_BLUE)
+				fields.title("#️⃣ Used Slash Command")
 			});
 
 			w.content(msg.content);
@@ -242,7 +233,7 @@ fn convey_message_content<'a, 'b>(
 	embeds.extend(
 		msg.embeds
 			.into_iter()
-			.map(|e| ser::Embed::fake(|enew| { *enew = ser::CreateEmbed::from(e); enew }))
+			.map(|e| ser::Embed::fake(|enew| { enew.0 = ser::CreateEmbed::from(e).0; enew }))
 	);
 
 	embeds.truncate(10);
