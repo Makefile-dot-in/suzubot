@@ -1,12 +1,12 @@
 use crate::comp_util::{ask_yn, edit};
 use crate::errors::{Contextualizable, Error, AsyncReportErr, Result};
 use crate::log::{LogErrorContext, LogType};
+use crate::cmd_data;
 
 use super::PoiseContext;
 
 use chrono::{Duration, Utc};
-use futures::future;
-use futures::{Stream, StreamExt, TryStreamExt, TryFutureExt};
+use futures::{future, Stream, StreamExt, TryStreamExt, TryFutureExt};
 use itertools::Itertools;
 use poise::ReplyHandle;
 use poise::serenity_prelude::{self as ser};
@@ -15,7 +15,7 @@ use regex::Regex;
 
 use std::fmt::Display;
 
-use std::{vec};
+use std::vec;
 
 
 use std::future::Future;
@@ -94,7 +94,7 @@ pub async fn purge(
         .unwrap_or(ctx.channel_id());
     let messages = MessageStream::new(ctx, channelid, before.as_ref().map(|b| b.id))
         .take(inlast.into())
-        .try_take_while(|msg| future::ready(Ok(after.as_ref().is_some_and(|a| a.id < msg.id))))
+        .try_take_while(|msg| future::ready(Ok(!after.as_ref().is_some_and(|a| a.id >= msg.id))))
         .try_filter(|msg| future::ready(!author.as_ref().is_some_and(|a| a != &msg.author)))
         .try_filter(|msg| {
             future::ready(!re.as_ref().is_some_and(|p| !p.is_match(&msg.content)))
@@ -104,7 +104,15 @@ pub async fn purge(
 		.await?;
 	
     if messages.len() >= ASK_FOR_CONFIRMATION_ABOVE {
-		let response = ask_yn(ctx, edit(&handle, ctx, format!("This will delete **{}** messages. Are you sure?", messages.len()))).await?;
+		let response = ask_yn(
+			ctx,
+			ctx.author(),
+			edit(
+				&handle,
+				ctx,
+				format!("This will delete **{}** messages. Are you sure?", messages.len())
+			)
+		).await?;
         match response {
             Some(true) => (),
             _ => {
@@ -140,12 +148,12 @@ pub async fn purge(
 	let purgeres = if sequential {
 		sequential_purge(ctx, &handle, logfut, delfut).await
 	} else {
-		concurrent_purge(logfut, delfut).await
+		concurrent_purge(ctx, logfut, delfut).await
 	};
 
 	purgeres.report_err(|err| handle.edit(ctx, |e| e.content(err))).await?;
 
-	
+	handle.edit(ctx, |e| e.content("Purge successful!")).await?;
     Ok(())
 }
 
@@ -231,7 +239,9 @@ async fn sequential_purge(
 	if let Err(logerr) = logres {
 		let response = ask_yn(
 			ctx,
-			edit(handle, ctx, format!("⚠️ **WARNING:** logging failed: {logerr}. The purged messages will be **irrevocably** lost.\
+			ctx.author(),
+			edit(handle, ctx, format!("⚠️ **WARNING:** logging failed: {logerr}. \
+									   The purged messages will be **irrevocably** lost.\
 									   Proceed anyway?"))
 		).await?;
 		match response {
@@ -247,10 +257,16 @@ async fn sequential_purge(
 }
 
 async fn concurrent_purge(
+	ctx: PoiseContext<'_>,
 	log: impl Future<Output = Result<()>> + Send,
 	deletion: impl Future<Output = Result<()>> + Send
 ) -> Result<()> {
-	futures::try_join!(log, deletion)?;
+	let logfut_with_err = async move {
+		log.await.report_err(|err| ctx.say(err)).await.ok();
+		Ok(())
+	};
+	futures::try_join!(logfut_with_err, deletion)?;
+
 	Ok(())
 }
 
@@ -296,4 +312,33 @@ impl<H: AsRef<ser::Http>> MessageStream<H> {
             Ok(next.map(move |msg| (msg, state)))
         })
     }
+}
+
+#[poise::command(slash_command, owners_only, custom_data = "cmd_data().test_mode()")]
+pub async fn message_stream_test(
+	ctx: PoiseContext<'_>,
+	limit: u16,
+	before: Option<ser::Message>
+) -> Result<()> {
+	ctx.defer().await?;
+	let suzu_msgs = MessageStream::new(ctx, ctx.channel_id(), before.as_ref())
+		.take(limit.into())
+		.try_collect::<Vec<_>>().await?;
+	let ser_msgs = ctx.channel_id()
+		.messages_iter(ctx)
+		.try_take_while(|m| future::ready(Ok(!before.as_ref().is_some_and(|b| m.id >= b.id))))
+		.take(limit.into())
+		.try_collect::<Vec<_>>().await?;
+
+	for (suzu_msg, ser_msg) in suzu_msgs.into_iter().zip(ser_msgs.into_iter()) {
+		if suzu_msg.id != ser_msg.id {
+			ctx.say(format!("Stream mismatch ({suzu_msg_id} != {ser_msg_id})",
+							suzu_msg_id = suzu_msg.id,
+							ser_msg_id = ser_msg.id)).await?;
+			return Ok(());
+		}
+	}
+
+	ctx.say("Test completed successfully").await?;
+	Ok(())
 }

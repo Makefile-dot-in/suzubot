@@ -52,7 +52,8 @@ fn get_options(iter: &mut Peekable<impl Iterator<Item = String>>)
 		}
 
 		let optname = opt.strip_prefix("-").unwrap();
-		let (_, args, _) = OPTIONS.iter().find(|&&(opt, _, _)| opt == optname).unwrap();
+		let (_, args, _) = OPTIONS.iter().find(|&&(opt, _, _)| opt == optname).
+			ok_or_else(|| anyhow!("unspported option: {optname}"))?;
 		let optargs = args.iter()
 			.enumerate()
 			.map(|(idx, &name)| {
