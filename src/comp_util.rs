@@ -22,10 +22,6 @@ pub async fn component_test(ctx: PoiseContext<'_>) -> Result<()> {
 	
 	match interaction {
 		Some(int) => {
-			/*int.create_interaction_response(ctx, |r| {
-				r.kind(ser::InteractionResponseType::UpdateMessage)
-					.interaction_response_data(|d| d.components(|c| c).content("Meow"))
-		}).await?;*/
 			int.defer(ctx).await?;
 		},
 		None => {

@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.26"
-poise = { git = "https://github.com/serenity-rs/poise", branch = "serenity-next" }
 regex = "1.9.1"
 futures = "0.3.28"
 bb8 = "0.8.1"
@@ -23,3 +22,12 @@ async-trait = "0.1.72"
 itertools = "0.11.0"
 toml = "0.7.6"
 serde = "1.0.185"
+twilight-cache-inmemory = { version = "0.15.2", features = ["permission-calculator"] }
+twilight-interactions = "0.15.2"
+twilight-util = { version = "0.15.2", features = ["builder", "link", "permission-calculator", "snowflake"] }
+twilight-standby = "0.15.2"
+twilight-model = "0.15.2"
+twilight-http = "0.15.2"
+twilight-gateway = "0.15.2"
+twilight-mention = "0.15.1"
+twilight-validate = "0.15.1"

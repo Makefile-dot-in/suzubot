@@ -4,7 +4,7 @@ use std::fmt;
 use std::iter::Peekable;
 use anyhow::{anyhow, Context};
 use itertools::Itertools;
-use suzubot_ng::init::Config;
+use suzubot_ng::runtime::Config;
 use tokio::fs::read_to_string;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -133,7 +133,7 @@ async fn main() {
 		}
 
 		log::info!("Starting profile {profile_name}");
-		suzubot_ng::init::run(profile).await?;
+		suzubot_ng::runtime::run(profile).await?;
 	};
 
 	if let Err(err) = init_res {

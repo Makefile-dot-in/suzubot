@@ -133,7 +133,7 @@ where SkipF: FnMut(&Migration<'static>) -> bool,
 	Ok(())
 }
 
-pub async fn migrate_to(profile: crate::init::Profile, target: u16) -> anyhow::Result<()> {
+pub async fn migrate_to(profile: crate::runtime::Profile, target: u16) -> anyhow::Result<()> {
 	let connstr = &profile.dbconnstr;
 	let mut client = connect(&connstr).await.context("connecting to database")?;
 	let last_migration = get_last_migration(&client).await.context("getting last migration")?;
@@ -171,7 +171,7 @@ pub async fn migrate_to(profile: crate::init::Profile, target: u16) -> anyhow::R
 	Ok(())
 }
 
-pub async fn initialize_db(profile: crate::init::Profile) -> anyhow::Result<()> {
+pub async fn initialize_db(profile: crate::runtime::Profile) -> anyhow::Result<()> {
 	log::info!("Initializing database {connstr}", connstr = &profile.dbconnstr);
 	let mut client = connect(&profile.dbconnstr).await
 		.context("connecting to database")?;
@@ -186,7 +186,7 @@ pub async fn initialize_db(profile: crate::init::Profile) -> anyhow::Result<()> 
 	Ok(())
 }
 
-pub async fn print_database_info(profile: crate::init::Profile) -> anyhow::Result<()> {
+pub async fn print_database_info(profile: crate::runtime::Profile) -> anyhow::Result<()> {
 	let client = connect(&profile.dbconnstr).await
 		.context("connecting to database")?;
 

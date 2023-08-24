@@ -1,7 +1,7 @@
-use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
+use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable, TwilightGatewayError, TwilightError, TwilightValidationError};
 use crate::pg;
-
-use poise::{serenity_prelude as ser};
+use twilight_gateway::error as twgate;
+use twilight_validate as twvalid;
 
 macro_rules! conversions {
 	// square brackets because angle brackets do not start a tree
@@ -24,6 +24,38 @@ macro_rules! conversions {
 	}
 }
 
+macro_rules! convert_suberror {
+    ($from:ty, $to:ty, $f:expr) => {
+		conversions! {
+			(err: $from) -> $to {
+				($f)(err)
+			}
+			
+			(err: $from) -> Error {
+				($f)(err).into()
+			}
+		}
+    };
+}
+convert_suberror!(TwilightGatewayError, TwilightError, TwilightError::Gateway);
+convert_suberror!(twgate::CompressionError, TwilightGatewayError, TwilightGatewayError::CompressionError);
+convert_suberror!(twgate::ProcessError, TwilightGatewayError, TwilightGatewayError::ProcessError);
+convert_suberror!(twgate::ReceiveMessageError, TwilightGatewayError, TwilightGatewayError::ReceiveMessageError);
+convert_suberror!(twgate::SendError, TwilightGatewayError, TwilightGatewayError::SendError);
+
+convert_suberror!(TwilightValidationError, TwilightError, TwilightError::Validation);
+convert_suberror!(twvalid::channel::ChannelValidationError, TwilightValidationError, TwilightValidationError::Channel);
+convert_suberror!(twvalid::command::CommandValidationError, TwilightValidationError, TwilightValidationError::Command);
+convert_suberror!(twvalid::component::ComponentValidationError, TwilightValidationError, TwilightValidationError::Component);
+convert_suberror!(twvalid::embed::EmbedValidationError, TwilightValidationError, TwilightValidationError::Embed);
+convert_suberror!(twvalid::message::MessageValidationError, TwilightValidationError, TwilightValidationError::Message);
+convert_suberror!(twvalid::request::ValidationError, TwilightValidationError, TwilightValidationError::Request);
+convert_suberror!(twvalid::sticker::StickerValidationError, TwilightValidationError, TwilightValidationError::Sticker);
+
+convert_suberror!(twilight_http::Error, TwilightError, TwilightError::Http);
+convert_suberror!(twilight_util::link::webhook::WebhookParseError, TwilightError, TwilightError::WebhookParse);
+
+
 conversions! {
 	for [T] (opterr: OptError<T>) -> Option<T> {
 		opterr.0
@@ -40,21 +72,12 @@ conversions! {
 		}
 	}
 
-	(interr: InternalError) -> Error {
-		Error::Internal(interr)
+	(twilighterr: TwilightError) -> Error {
+		Error::Internal(InternalError::TwilightError(twilighterr))
 	}
 
-	(sererr: ser::SerenityError) -> Error {
-		use ser::SerenityError as Ser;
-		use ser::ModelError as Model;
-		match sererr {
-			Ser::Model(Model::RoleNotFound) => Error::RoleNotFound,
-			Ser::Model(Model::MemberNotFound) => Error::MemberNotFound,
-			Ser::Model(Model::ChannelNotFound) => Error::ChannelNotFound,
-			Ser::Model(Model::MessageAlreadyCrossposted) => Error::MessageAlreadyCrossposted,
-			Ser::Model(Model::CannotCrosspostMessage) => Error::CannotCrosspostMessage,
-			e => Error::Internal(InternalError::SerenityError(e))
-		}
+	(interr: InternalError) -> Error {
+		Error::Internal(interr)
 	}
 
 	(pgerr: pg::Error) -> Error {

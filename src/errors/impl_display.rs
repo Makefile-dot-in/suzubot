@@ -50,7 +50,7 @@ impl Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use Error::*;
 		match self {
-			MissingPermission(permissions) =>
+			MissingPermissions(permissions) =>
 				write!(f, "Missing permissions: {permissions}"),
 			RoleNotFound =>
 				write!(f, "Role not found"),

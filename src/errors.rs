@@ -1,10 +1,9 @@
-use std::fmt::{Display};
+use std::fmt::Display;
 use async_trait::async_trait;
 use futures::Future;
+use twilight_model::guild::Permissions;
 
 use std::error::Error as StdError;
-use poise::FrameworkError;
-use poise::serenity_prelude as ser;
 use std::result::Result as StdResult;
 
 use crate::pg;
@@ -14,6 +13,8 @@ pub use contextualizable::WithContext;
 pub use contextualizable::Contextualizable;
 
 use self::contextualizable::impl_contextualizable_error;
+use twilight_gateway::error as twgate;
+use twilight_validate as twvalid;
 
 
 mod conversions;
@@ -26,8 +27,6 @@ pub type CmdResult<T> = StdResult<T, WithContext<OptError<InternalError>>>;
 #[derive(Clone, Copy, Debug)]
 pub struct OptError<T>(pub Option<T>);
 
-struct LoggedFrameworkError<'a, 'b>(&'a FrameworkError<'b, crate::Data, crate::SuzuError>);
-
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LoggedMappedWithContext<'a, E, F>(pub &'a WithContext<E>, pub fn(&'a E) -> F)
 where E: Contextualizable;
@@ -35,8 +34,7 @@ where E: Contextualizable;
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LoggedError<'a>(pub &'a Error);
 
-#[derive(Debug)]
-struct LoggedContext<'a>(crate::PoiseContext<'a>);
+
 
 #[derive(Debug)]
 pub enum Context {
@@ -46,10 +44,36 @@ pub enum Context {
 	Purge(crate::purge::PurgeErrorContext),
 }
 
+#[derive(Debug)]
+pub enum TwilightGatewayError {
+	CompressionError(twgate::CompressionError),
+	ProcessError(twgate::ProcessError),
+	ReceiveMessageError(twgate::ReceiveMessageError),
+	SendError(twgate::SendError),
+}
+
+#[derive(Debug)]
+pub enum TwilightValidationError {
+	Channel(twvalid::channel::ChannelValidationError),
+	Command(twvalid::command::CommandValidationError),
+	Component(twvalid::component::ComponentValidationError),
+	Embed(twvalid::embed::EmbedValidationError),
+	Message(twvalid::message::MessageValidationError),
+	Request(twvalid::request::ValidationError),
+	Sticker(twvalid::sticker::StickerValidationError),
+}
+
+#[derive(Debug)]
+pub enum TwilightError {
+	Gateway(TwilightGatewayError),
+	Http(twilight_http::Error),
+	Validation(TwilightValidationError),
+	WebhookParse(twilight_util::link::webhook::WebhookParseError),
+}
 
 #[derive(Debug)]
 pub enum InternalError {
-	SerenityError(ser::Error),
+	TwilightError(TwilightError),
 	DatabaseError(pg::Error),
 	Bb8Error(bb8::RunError<pg::Error>),
 	InvalidByteADiscordIDFormat
@@ -57,7 +81,7 @@ pub enum InternalError {
 
 #[derive(Debug)]
 pub enum Error {
-	MissingPermission(ser::Permissions),
+	MissingPermissions(Permissions),
 	RoleNotFound,
 	MemberNotFound,
 	ChannelNotFound,

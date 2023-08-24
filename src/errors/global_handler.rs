@@ -13,7 +13,7 @@ fn suzu_error_level(err: &Error) -> log::Level {
 	}
 }
 
-fn framework_error_level(err: &FrameworkError<'_, crate::Data, crate::SuzuError>) -> log::Level {
+fn framework_error_level(err: &FrameworkError<'_, crate::SuzuData, crate::SuzuError>) -> log::Level {
 	use FrameworkError::*;
 	match err {
 		Setup { .. } => log::Level::Error,
@@ -38,7 +38,7 @@ fn framework_error_level(err: &FrameworkError<'_, crate::Data, crate::SuzuError>
 	}
 }
 
-async fn discord_report_message(err: &FrameworkError<'_, crate::Data, crate::SuzuError>) {
+async fn discord_report_message(err: &FrameworkError<'_, crate::SuzuData, crate::SuzuError>) {
 	use FrameworkError::*;
 	match err {
 		CommandPanic { ctx, .. } => {
@@ -74,7 +74,7 @@ async fn discord_report_message(err: &FrameworkError<'_, crate::Data, crate::Suz
 	};
 }
 
-pub async fn on_error(err: FrameworkError<'_, crate::Data, crate::SuzuError>) {
+pub async fn on_error(err: FrameworkError<'_, crate::SuzuData, crate::SuzuError>) {
 	let log_level = framework_error_level(&err);
 	log::log!(log_level, "{logged_err}",
 			  logged_err = LoggedFrameworkError(&err));

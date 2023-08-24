@@ -6,10 +6,10 @@ use webhook::WebhookExecutor;
 pub(crate) use tokio_postgres as pg;
 use errors::{WithContext, Error};
 
-pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
+pub const COMMANDS: &[fn() -> poise::Command<SuzuData, SuzuError>] = &[
 	purge::purge,
 	log::log,
-	init::register,
+	runtime::register,
 	comp_util::component_test,
 	purge::message_stream_test,
 ];
@@ -35,7 +35,7 @@ impl Default for CustomCommandData {
 }
 
 impl CustomCommandData {
-	pub fn from_command_data<'a>(cmd: &'a poise::Command<Data, SuzuError>) -> &'a CustomCommandData {
+	pub fn from_command_data<'a>(cmd: &'a poise::Command<SuzuData, SuzuError>) -> &'a CustomCommandData {
 		cmd.custom_data.downcast_ref::<CustomCommandData>().unwrap_or(&DEF_CMD_DATA)
 	}
 
@@ -47,16 +47,8 @@ impl CustomCommandData {
 	}
 }
 
-#[derive(Debug)]
-pub struct Data {
-	bot_name: String,
-    webhexec: WebhookExecutor,
-    dbconn: Pool<PostgresConnectionManager<DatabaseTls>>,
-	logdata: log::LogData,
-}
-
+pub use runtime::SuzuData;
 type SuzuError = WithContext<Error>;
-type PoiseContext<'a> = poise::Context<'a, Data, WithContext<Error>>;
 type DatabaseTls = pg::tls::NoTls;
 
 fn db_tls() -> DatabaseTls { pg::tls::NoTls }
@@ -66,7 +58,7 @@ pub mod purge;
 pub mod webhook;
 pub mod msgreplication;
 pub mod errors;
-pub mod init;
+pub mod runtime;
 pub mod migrations;
 mod linkable;
 mod comp_util;

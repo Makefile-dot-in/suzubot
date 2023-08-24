@@ -146,7 +146,7 @@ impl<'a, T: Clone + Eq + Hash> MonopolizeGuard<'a, T> {
 
 
 async fn get_logch(
-    data: &crate::Data,
+    data: &crate::SuzuData,
     guild: ser::GuildId,
     log_type: LogType,
 ) -> Result<Option<ser::ChannelId>> {
@@ -167,7 +167,7 @@ async fn get_logch(
 }
 
 async fn set_logch(
-	data: &crate::Data,
+	data: &crate::SuzuData,
 	guild: ser::GuildId,
 	log_type: LogType,
 	channel: ser::ChannelId
@@ -180,7 +180,7 @@ async fn set_logch(
 }
 
 async fn del_logch(
-	data: &crate::Data,
+	data: &crate::SuzuData,
 	guild: ser::GuildId,
 	log_type: LogType
 ) -> Result<()> {
@@ -195,7 +195,7 @@ async fn del_logch(
 /// generalized log poster
 async fn post_log<'b, F>(
 	http: impl AsRef<ser::Http>,
-	data: &crate::Data,
+	data: &crate::SuzuData,
 	guild: ser::GuildId,
 	log_type: LogType,
 	builder: F,
