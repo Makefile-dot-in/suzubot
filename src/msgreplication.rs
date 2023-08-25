@@ -52,10 +52,9 @@ pub async fn replicate_messages<H, C, M>(
 	channel: impl Into<ser::ChannelId>,
 	thread: Option<impl Into<ser::ChannelId>>,
 	msgs: M,
-	mut customize_builder: C
+	mut customize_builder: ser::ExecuteWebhook
 ) -> Result<()>
-where C: for<'a, 'b> FnMut(&'a mut ser::ExecuteWebhook<'b>) -> &'a mut ser::ExecuteWebhook<'b>,
-	  H: AsRef<ser::Http>,
+where H: AsRef<ser::Http>,
 	  M: IntoIterator<Item = ser::Message> {
 	let thread = thread.map(Into::into);
 	let channel = channel.into();
