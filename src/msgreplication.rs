@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use poise::serenity_prelude::{self as ser, ExecuteWebhook, Mentionable};
+use twilight_http::request::channel::webhook::ExecuteWebhook;
 use reqwest::Url;
 use std::fmt::{self, Display};
 use crate::errors::{Result, Contextualizable, Error, LogError, LoggedError, LoggedMappedWithContext};

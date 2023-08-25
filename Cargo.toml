@@ -16,6 +16,7 @@ postgres-types = { version = "0.2.5", features = ["derive", "array-impls"] }
 reqwest = "0.11.8"
 tokio = { version = "1.29.1", features = ["sync", "rt-multi-thread"] }
 eyre = "0.6.8"
+thiserror = "1.0.47"
 log = "0.4.19"
 env_logger = "0.10.0"
 async-trait = "0.1.72"
