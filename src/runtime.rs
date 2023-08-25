@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::{eyre, Result};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{Intents, Shard, ShardId};
 use twilight_http::Client as HttpClient;
@@ -65,7 +65,7 @@ impl Config {
 
 	pub fn get_profile(mut self, name: &str) -> Result<Profile, anyhow::Error> {
 		self.profiles.remove(name)
-			.ok_or_else(|| anyhow!("{name}: profile not found"))
+			.ok_or_else(|| eyre!("{name}: profile not found"))
 	}
 }
 
@@ -117,6 +117,9 @@ impl SuzuRuntime {
 		loop {
 			let event = match self.shard.next_event().await {
 				Ok(event) => event,
+				Err(err) => {
+					log::warn!("error receiving event: {err}");
+				}
 			}
 		}
 	}
