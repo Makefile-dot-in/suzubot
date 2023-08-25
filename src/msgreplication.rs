@@ -52,9 +52,10 @@ pub async fn replicate_messages<H, C, M>(
 	channel: impl Into<ser::ChannelId>,
 	thread: Option<impl Into<ser::ChannelId>>,
 	msgs: M,
-	mut customize_builder: ser::ExecuteWebhook
+	mut customize_builder: C
 ) -> Result<()>
-where H: AsRef<ser::Http>,
+where C: for<'a, 'b> FnMut(&'a mut ser::ExecuteWebhook<'b>) -> &'a mut ser::ExecuteWebhook<'b>,
+	  H: AsRef<ser::Http>,
 	  M: IntoIterator<Item = ser::Message> {
 	let thread = thread.map(Into::into);
 	let channel = channel.into();
@@ -92,10 +93,10 @@ where H: AsRef<ser::Http>,
 
 /// converts a message to a webhook
 fn msg_to_webhook<'a, 'b>(
-	w: ser::ExecuteWebhook,
+	w: &'a mut ser::ExecuteWebhook<'b>,
 	msg: ser::Message,
 	referenced: Option<LinkableMessage>
-) -> ser::ExecuteWebhook {
+) -> &'a mut ser::ExecuteWebhook<'b> {
 	w.username(match &msg.member {
 		Some(ser::PartialMember { nick: Some(nick), .. } ) => format!("{nick} [{}]", msg.author.tag()),
 		_ => msg.author.tag(),
@@ -126,10 +127,10 @@ fn simple_embed(
 /// generate appropriate embeds and/or content for replication
 /// depending on the kind of the original message
 fn convey_message_content<'a, 'b>(
-	w: ser::ExecuteWebhook,
+	w: &'a mut ExecuteWebhook<'b>,
 	msg: ser::Message,
 	referenced: Option<LinkableMessage>
-) -> ser::ExecuteWebhook {
+) -> &'a mut ExecuteWebhook<'b> {
 	let (attachments, mut embeds) = attachment_to_attachment_type_or_embed(msg.attachments);
 	w.add_files(attachments);
 	
@@ -251,7 +252,7 @@ fn convey_message_content<'a, 'b>(
 
 
 /// converts an interaction to embed form.
-fn interaction_to_embed(emb: ser::CreateEmbed, interaction: ser::MessageInteraction) -> ser::CreateEmbed {
+fn interaction_to_embed(emb: &mut ser::CreateEmbed, interaction: ser::MessageInteraction) -> &mut ser::CreateEmbed {
 	emb.field("ID", interaction.id, true);
 	use ser::InteractionType::*;
 	emb.field("Kind", match interaction.kind {
@@ -272,7 +273,7 @@ const MAX_DOWNLOAD_SIZE: u64 = 25_000_000; // 25 MB
 /// converts the attachments of a message to a webhook
 fn attachment_to_attachment_type_or_embed(
 	attachments: impl IntoIterator<Item = ser::Attachment>
-) -> (Vec<ser::CreateAttachment>, Vec<ser::json::Value>) {
+) -> (Vec<ser::AttachmentType<'static>>, Vec<ser::json::Value>) {
 	let mut size = 0;
 	let mut attachment_types = Vec::new();
 	let mut embeds = Vec::new();
@@ -282,8 +283,9 @@ fn attachment_to_attachment_type_or_embed(
 			.then_some(())
 			.ok_or_else(|| None)
 			.and_then(|_| Url::parse(&attachment.url)
-					  .map(ser::CreateAttachment::url)
+					  .map(ser::AttachmentType::Image)
 					  .map_err(|err| Some(format!("error while parsing {} as a URL: {err}", attachment.url))));
+		// `Image` actually has nothing image-specific and is just the type for urls, blame serenity
 
 		match attachment_type_opt {
 			Ok(attachment_type) => attachment_types.push(attachment_type),

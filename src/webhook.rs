@@ -49,3 +49,159 @@ pub async fn create_or_return_webhook_for_channel(
 	}
 }
 
+/// overcomplicated way of specifying the `wait` parameter
+#[async_trait]
+pub trait WebhookExecutionResult: Sized {
+	fn wait() -> bool;
+	async fn from_response(re: reqwest::Response) -> ser::Result<Self>;
+}
+
+#[async_trait]
+impl WebhookExecutionResult for () {
+	fn wait() -> bool { false }
+	async fn from_response(_re: reqwest::Response) -> ser::Result<Self> {
+		Ok(())
+	}
+}
+
+#[async_trait]
+impl WebhookExecutionResult for ser::Message {
+	fn wait() -> bool { true }
+
+	async fn from_response(re: reqwest::Response) -> ser::Result<Self> {
+		re.json::<ser::Message>().await.map_err(Into::into)
+	}
+}
+
+/// webhook executor that handles thread id which serenity won't
+/// won't be needed when serenity hits 0.12
+#[derive(Debug)]
+pub struct WebhookExecutor {
+    client: reqwest::Client,
+    routes: RwLock<HashMap<ser::WebhookId, Mutex<Instant>>>,
+}
+
+impl WebhookExecutor {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::builder()
+                .user_agent("suzu custom webhook thing because the serenity one isn't very good")
+                .build()
+                .unwrap(),
+            routes: RwLock::new(HashMap::new()),
+        }
+    }
+
+    async fn file_to_part(file: tokio::fs::File) -> reqwest::multipart::Part {
+        match file.metadata().await {
+            Ok(m) => reqwest::multipart::Part::stream_with_length(file, m.len()),
+            Err(_) => reqwest::multipart::Part::stream(file),
+        }
+    }
+
+    pub async fn execute<F, R>(
+        &self,
+        webhook: &ser::Webhook,
+        thread_id: Option<impl Into<ser::ChannelId>>,
+        builder: F,
+    ) -> ser::Result<R>
+    where
+        F: for<'a, 'b> FnOnce(&'a mut ExecuteWebhook<'b>) -> &'a mut ExecuteWebhook<'b>,
+		R: WebhookExecutionResult
+    {
+        let mut exwhb: ExecuteWebhook = Default::default();
+        builder(&mut exwhb);
+
+        let ExecuteWebhook(jsonmap, attachments) = exwhb;
+        let mut url = reqwest::Url::parse("https://discord.com/api/v10/webhooks").unwrap();
+        url.path_segments_mut()
+            .unwrap()
+            .push(&webhook.id.to_string())
+            .push(&webhook.token.as_ref().ok_or(ser::ModelError::NoTokenSet)?);
+        let mut form = reqwest::multipart::Form::new()
+            .text("payload_json", ser::json::prelude::to_string(&jsonmap)?);
+
+        for (idx, attachment) in attachments.into_iter().enumerate() {
+            let part = match attachment {
+				// this api is the worst ever conceived by humanity. like wtf is this. bestie just fucking let
+				// me pass in a stream or a fucking Vec<u8> since this shit gets copied anyway
+                ser::AttachmentType::Bytes { data, filename } => {
+                    reqwest::multipart::Part::bytes(data).file_name(filename)
+                }
+                ser::AttachmentType::File { file, filename } => {
+                    let _ = file.sync_all().await;
+                    WebhookExecutor::file_to_part(file.try_clone().await?)
+                        .await
+                        .file_name(filename)
+                }
+                ser::AttachmentType::Path(path) => {
+                    let mut part =
+                        WebhookExecutor::file_to_part(tokio::fs::File::open(path).await?).await;
+                    if let Some(filename) = path.file_name() {
+                        part = part.file_name(filename.to_string_lossy());
+                    }
+                    part
+                }
+                ser::AttachmentType::Image(url) => {
+                    let response = self.client.get(url.clone()).send().await?;
+                    let mut part = match response.content_length() {
+                        Some(len) => reqwest::multipart::Part::stream_with_length(response, len),
+                        None => reqwest::multipart::Part::stream(response),
+                    };
+
+                    if let Some(filename) = url.path_segments().and_then(Iterator::last) {
+                        part = part.file_name(filename.to_owned());
+                    }
+
+                    part
+                }
+                _ => continue,
+            };
+            form = form.part(format!("file[{idx}]"), part);
+        }
+
+		// Cow<str> because we have a mixture of owned and non-owned strings
+		let mut query: Vec<(Cow<str>, Cow<str>)> = vec![("wait".into(), if R::wait() { "true".into() } else { "false".into() })];
+		if let Some(thrid) = thread_id {
+			query.push(("thread_id".into(), thrid.into().0.to_string().into()));
+		}
+
+        let mut map_guard = self.routes.read().await;
+        let duration_mutex = match map_guard.get(&webhook.id) {
+            Some(mutex) => mutex,
+            None => {
+                drop(map_guard);
+                let mut write_guard = self.routes.write().await;
+                write_guard.insert(webhook.id, Mutex::new(Instant::now()));
+                drop(write_guard);
+                map_guard = self.routes.read().await;
+                &map_guard[&webhook.id]
+            }
+        };
+        let mut duration_guard = duration_mutex.lock().await;
+		// everything has been processed, time to sleep
+        tokio::time::sleep_until(*duration_guard).await;
+		
+        let re = self
+            .client
+            .post(url)
+            .query(&query)
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()?;
+		
+        let reset_after = re
+            .headers()
+            .get("X-RateLimit-Reset-After")
+            .ok_or(ser::HttpError::RateLimitUtf8)? // serenity doesn't have a better error
+            .to_str()
+            .map_err(|_| ser::HttpError::RateLimitUtf8)?
+            .parse::<f64>()
+            .map_err(|_| ser::HttpError::RateLimitI64F64)?;
+		
+        let reset_at = Instant::now() + StdDuration::from_secs_f64(reset_after);
+        *duration_guard = reset_at;
+        R::from_response(re).await
+    }
+}

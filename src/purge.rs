@@ -51,10 +51,12 @@ pub async fn purge(
     inlast: Option<u16>,
     #[description = "Purge only messages by this author"] author: Option<ser::User>,
     #[description = "Only purge messages matching this regex"]
+    #[max_length = 100]
     pattern: Option<String>,
     #[description = "Start purging above this message."] before: Option<ser::Message>,
     #[description = "Stop purging below this message."] after: Option<ser::Message>,
     #[description = "Reason (shows up in log)"]
+    #[max_length = 100]
     reason: Option<String>,
 	#[description = "Whether to wait until logging finishes before purging. Defeaults to false"]
 	sequential: Option<bool>

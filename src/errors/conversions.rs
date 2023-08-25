@@ -1,7 +1,7 @@
 use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
 use crate::pg;
 
-use poise::serenity_prelude::all as ser;
+use poise::{serenity_prelude as ser};
 
 macro_rules! conversions {
 	// square brackets because angle brackets do not start a tree
@@ -44,8 +44,8 @@ conversions! {
 		Error::Internal(interr)
 	}
 
-	(sererr: ser::Error) -> Error {
-		use ser::Error as Ser;
+	(sererr: ser::SerenityError) -> Error {
+		use ser::SerenityError as Ser;
 		use ser::ModelError as Model;
 		match sererr {
 			Ser::Model(Model::RoleNotFound) => Error::RoleNotFound,
