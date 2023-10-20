@@ -2,11 +2,10 @@
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use chrono::Datelike;
-use itertools::Itertools;
 pub(crate) use postgres_types as pgtyp;
 use webhook::WebhookExecutor;
 pub(crate) use tokio_postgres as pg;
-use std::{fmt, ops::{Range, RangeBounds}};
+use std::{fmt, ops::Range};
 use errors::{WithContext, Error};
 use poise::serenity_prelude as ser;
 

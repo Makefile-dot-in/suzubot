@@ -15,7 +15,7 @@ use crate::truncate;
 use crate::fmttime_discord;
 
 use chrono::Duration;
-use poise::serenity_prelude::{CreateEmbed, Cache, CacheHttp};
+use poise::serenity_prelude::{CreateEmbed, CacheHttp};
 use poise::{serenity_prelude as ser, ChoiceParameter, Event, FrameworkContext};
 use ser::Mentionable;
 use std::sync::Mutex;

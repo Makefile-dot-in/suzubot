@@ -4,10 +4,10 @@ use itertools::Itertools;
 use poise::serenity_prelude::{self as ser, ExecuteWebhook, Mentionable};
 use reqwest::Url;
 use std::fmt::{self, Display};
-use crate::errors::{Result, Contextualizable, Error, LogError, LoggedError, LoggedMappedWithContext};
+use crate::errors::{Result, Contextualizable, Error, LoggedError, LoggedMappedWithContext};
 use crate::webhook::{create_or_return_webhook_for_channel, WebhookExecutor};
 use log::error;
-use std::result::Result as StdResult;
+
 
 type LinkableMessage = (Option<ser::GuildId>, ser::ChannelId, ser::MessageId);
 
