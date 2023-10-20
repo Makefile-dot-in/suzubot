@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use regex::Regex;
 use anyhow::{Context, anyhow};
+use std::io::Write;
 use std::{fmt, io};
 use std::cmp::Ordering;
 use crate::pg;
@@ -96,10 +97,11 @@ async fn migrate<SkipF, TakeF>(
 ) -> anyhow::Result<()>
 where SkipF: FnMut(&Migration<'static>) -> bool,
 	  TakeF: FnMut(&Migration<'static>) -> bool {
-	let confstr = format!("Yes, I want to migrate {connstr} from {target:0<3} to {last_migration:0<3}.");
+	let confstr = format!("Yes, I want to migrate {connstr} from {last_migration:0>3} to {target:0>3}.");
 	log::warn!("Performing {migration_article} {migration_name} migration may be irreversible losslessly! Making a backup is recommended.");
 	log::warn!("Type `{confstr}` to proceed.");
 	print!("input: ");
+	io::stdout().flush().context("error flushing stdout")?;
 	io::stdin()
 		.lines()
 		.next()
@@ -108,7 +110,7 @@ where SkipF: FnMut(&Migration<'static>) -> bool,
 		.is_some_and(|line| line == confstr)
 		.then_some(())
 		.ok_or_else(|| anyhow!("migration aborted"))?;
-	log::info!("Performing {migration_article} {migration_name} migration ({last_migration:0<3} -> {target:0<3}))");
+	log::info!("Performing {migration_article} {migration_name} migration ({last_migration:0>3} -> {target:0>3}))");
 	let migrations = parse_migrations(migration_file)
 		.context(format!("parsing {migration_name} migrations"))?
 		.into_iter()
@@ -195,7 +197,7 @@ pub async fn print_database_info(profile: crate::init::Profile) -> anyhow::Resul
 		.ok();
 	println!("Database: {connstr}", connstr = profile.dbconnstr);
 	if let Some(last_migration) = last_migration_opt {
-		println!("Current migration: {last_migration:0<3}");
+		println!("Current migration: {last_migration:0>3}");
 	}
 	Ok(())
 }

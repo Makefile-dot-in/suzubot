@@ -4,6 +4,7 @@ use std::fmt;
 use std::iter::Peekable;
 use anyhow::{anyhow, Context};
 use itertools::Itertools;
+use log::LevelFilter;
 use suzubot_ng::init::Config;
 use tokio::fs::read_to_string;
 
@@ -76,7 +77,10 @@ fn parse_args() -> Result<(String, HashMap<String, HashMap<&'static str, String>
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    env_logger::builder()
+		.filter_level(LevelFilter::Info)
+		.parse_default_env()
+		.init();
 
 	let init_res: Result<(), anyhow::Error> = try {
 		let (exec_name, opt_args, position_args) = parse_args()?;
