@@ -13,3 +13,13 @@ CREATE TABLE suzu_table_metadata (
 );
 
 INSERT INTO suzu_table_metadata (current_migration) VALUES (000);
+
+--# MIGRATION: 001 More logging
+ALTER TYPE logtype ADD VALUE 'MessageEdit';
+ALTER TYPE logtype ADD VALUE 'MessageDelete';
+ALTER TYPE logtype ADD VALUE 'UserBan';
+ALTER TYPE logtype ADD VALUE 'UserKick';
+ALTER TYPE logtype ADD VALUE 'UserJoin';
+ALTER TYPE logtype ADD VALUE 'UserLeave';
+ALTER TYPE logtype ADD VALUE 'VoiceUpdate';
+

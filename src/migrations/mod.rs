@@ -110,7 +110,7 @@ where SkipF: FnMut(&Migration<'static>) -> bool,
 		.ok_or_else(|| anyhow!("migration aborted"))?;
 	log::info!("Performing {migration_article} {migration_name} migration ({last_migration:0<3} -> {target:0<3}))");
 	let migrations = parse_migrations(migration_file)
-		.context("parsing {migration_name} migrations")?
+		.context(format!("parsing {migration_name} migrations"))?
 		.into_iter()
 		.skip_while(skip_while)
 		.take_while(take_while)
