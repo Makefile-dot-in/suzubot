@@ -169,7 +169,7 @@ async fn delete_messages(
 	channelid: ser::ChannelId,
 	messages: impl IntoIterator<Item = ser::MessageId>,
 ) -> Result<()> {
-	let msg_guard = ctx.data().logdata.monopolize_messages(messages);
+	let msg_guard = ctx.data().logdata.monopolize(messages);
 	let mut errors: Vec<(Option<(ser::MessageId, ser::MessageId)>, Error)> = Vec::new();
 	let mut iter = msg_guard.items().map(Clone::clone);
 	let min_ts: ser::Timestamp = (Utc::now() - Duration::days(7)).into();

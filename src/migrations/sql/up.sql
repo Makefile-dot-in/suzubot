@@ -22,4 +22,3 @@ ALTER TYPE logtype ADD VALUE 'UserKick';
 ALTER TYPE logtype ADD VALUE 'UserJoin';
 ALTER TYPE logtype ADD VALUE 'UserLeave';
 ALTER TYPE logtype ADD VALUE 'VoiceUpdate';
-

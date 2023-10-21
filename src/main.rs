@@ -12,12 +12,13 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = env!("CARGO_PKG_NAME");
 
 const OPTIONS: &[(&str, &[&str], &str)] = &[
-	("c",               &["PATH"],   "Specifies the config file."),
-	("list_migrations", &[],         "Lists all migrations."),
-	("migrate",         &["TARGET"], "Migrates the database for the selected profile to TARGET."),
-	("init",            &[],         "Initializes the database for the selected profile."),
-	("info",            &[],         "Prints database info"),
-	("h",               &[],         "Prints this help message."),
+	("c",               &["PATH"],   	"Specifies the config file."),
+	("list_migrations", &[],         	"Lists all migrations."),
+	("migration_info",  &["MIGRATION"], "Views info for a migration."),
+	("migrate",         &["TARGET"], 	"Migrates the database for the selected profile to TARGET."),
+	("init",            &[],         	"Initializes the database for the selected profile."),
+	("info",            &[],         	"Prints database info"),
+	("h",               &[],         	"Prints this help message."),
 ];
 
 struct HelpString<'a> {
@@ -117,6 +118,14 @@ async fn main() {
 
 		if opt_args.contains_key("list_migrations") {
 			suzubot_ng::migrations::list_migrations()?;
+			return;
+		}
+
+		if let Some(migration_info_opts) = opt_args.get("migration_info") {
+			let migration = migration_info_opts["MIGRATION"]
+				.parse::<u16>()
+				.context("parsing migration")?;
+			suzubot_ng::migrations::print_migration(migration)?;
 			return;
 		}
 

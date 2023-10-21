@@ -1,9 +1,64 @@
-use poise::{serenity_prelude as ser, ReplyHandle};
+use poise::{serenity_prelude as ser, ReplyHandle, ChoiceParameter};
 use std::future::Future;
 use std::time::Duration as StdDuration;
 use std::pin::Pin;
+use std::fmt::Debug;
 use std::borrow::Cow;
 use crate::{errors::Result, PoiseContext, cmd_data};
+
+#[derive(ChoiceParameter, Clone, Copy)]
+enum CacheType {
+    User,
+    Message,
+    Channel,
+    Guild,
+}
+
+impl CacheType {
+    fn get_debug_from_cache(
+        self,
+        c: impl AsRef<ser::Cache>,
+        id: u64,
+        cid: ser::ChannelId
+    ) -> Option<String> {
+        fn b<D: Debug>(d: D) -> String { format!("{d:#?}") }
+        match self {
+            Self::User => c.as_ref().user(ser::UserId(id)).map(b),
+            Self::Message => c.as_ref().message(cid, ser::MessageId(id)).map(b),
+            Self::Channel => c.as_ref().channel(ser::ChannelId(id)).map(b),
+            Self::Guild => c.as_ref().guild(ser::GuildId(id)).map(b),
+        }
+    }
+}
+
+#[poise::command(slash_command, owners_only, custom_data = "cmd_data().test_mode()")]
+pub async fn cache_test(
+    ctx: PoiseContext<'_>,
+    typ: CacheType,
+    id: String,
+    cid: Option<ser::ChannelId>) -> Result<()> {
+    let idp = match id.parse::<u64>() {
+        Ok(c) => c,
+        Err(e) => {
+            ctx.say(format!("{e:?}")).await?;
+            return Ok(())
+        }
+    };
+    match typ.get_debug_from_cache(ctx, idp, cid.unwrap_or(ser::ChannelId(0))) {
+        Some(item) => {
+            ctx.send(|r| {
+                r.attachment(ser::AttachmentType::Bytes {
+                    data: item.into_bytes().into(),
+                    filename: "cache_item.txt".to_owned()
+                })
+            }).await?;
+        },
+        None => {
+            ctx.say("no item found").await?;
+        }
+    }
+    Ok(())
+}
 
 #[poise::command(slash_command, owners_only, custom_data = "cmd_data().test_mode()")]
 pub async fn component_test(ctx: PoiseContext<'_>) -> Result<()> {

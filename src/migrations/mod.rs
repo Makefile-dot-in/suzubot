@@ -1,15 +1,20 @@
 use itertools::Itertools;
-use regex::Regex;
+use regex::RegexBuilder;
 use anyhow::{Context, anyhow};
 use std::io::Write;
-use std::{fmt, io};
+use std::{fmt, io, iter};
 use std::cmp::Ordering;
 use crate::pg;
 
-const MIGRATION_SEP_REGEX: &str = r#"(?:\n|^)--# MIGRATION: (\d+) (.*?)\n(.*)"#;
+const MIGRATION_SEP_REGEX: &str = r#"(?:\n|^)--# MIGRATION: (\d+) (.*?)\n"#;
 const MIGRATION_NUM_QUERY: &str = "SELECT current_migration FROM suzu_table_metadata";
-pub const UP_MIGRATIONS: &str = include_str!("sql/up.sql");
-pub const DOWN_MIGRATIONS: &str = include_str!("sql/down.sql");
+pub const UP_MIGRATIONS_SQL: &str = include_str!("sql/up.sql");
+pub const DOWN_MIGRATIONS_SQL: &str = include_str!("sql/down.sql");
+pub const UP_MIGRATION_INTEROFF: i16 = 1;
+pub const DOWN_MIGRATION_INTEROFF: i16 = -1;
+type UnparsedMigrations = (&'static str, i16);
+pub const UP_MIGRATIONS: UnparsedMigrations = (UP_MIGRATIONS_SQL, UP_MIGRATION_INTEROFF);
+pub const DOWN_MIGRATIONS: UnparsedMigrations = (DOWN_MIGRATIONS_SQL, DOWN_MIGRATION_INTEROFF);
 
 
 #[derive(Debug, Clone, Copy)]
@@ -28,17 +33,26 @@ impl<'a> fmt::Display for Migration<'a> {
 }
 
 
-fn parse_migrations(input: &'static str) -> anyhow::Result<Vec<Migration<'static>>> {
-	let re = Regex::new(MIGRATION_SEP_REGEX).unwrap();
+fn parse_migrations((input, inter_offset): UnparsedMigrations) -> anyhow::Result<Vec<Migration<'static>>> {
+	let re = RegexBuilder::new(MIGRATION_SEP_REGEX)
+		.dot_matches_new_line(true)
+		.build()
+		.unwrap();
 
 	let v: Vec<_> = re.captures_iter(input)
-		.map(|captures| captures.extract())
-		.map(|(_, [num, description, sql])| {
+		.map(|captures| {
+			let m = captures.get(0).unwrap();
+			let (_, extr) = captures.extract();
+			(m.start(), m.end(), extr)
+		})
+		.chain(iter::once((input.len(), input.len(), ["65535", "Phantom migration"])))
+		.tuple_windows()
+		.map(|((_, sql_start, [num, description]), (sql_end, _, _))| {
 			Ok(Migration {
 				target: num.parse::<u16>()
 					.with_context(|| format!("could not parse {num} as a number"))?,
 				description,
-				sql
+				sql: &input[sql_start..sql_end],
 			})
 		})
 		.collect::<anyhow::Result<Vec<_>>>()?;
@@ -47,9 +61,9 @@ fn parse_migrations(input: &'static str) -> anyhow::Result<Vec<Migration<'static
 			let [anum, bnum] = <&[Migration<'static>; 2]>::try_from(sl)
 				.unwrap()
 				.map(|m| m.target);
-			(anum + 1 == bnum)
+			(anum.saturating_add_signed(inter_offset) == bnum)
 				.then_some(())
-				.ok_or_else(|| anyhow!("non-sequential migrations: {anum} + 1 != {bnum}"))
+				.ok_or_else(|| anyhow!("non-sequential migrations: {anum} + ({inter_offset}) != {bnum}"))
 		})
 		.collect::<anyhow::Result<()>>()?;
 	Ok(v)
@@ -84,9 +98,36 @@ pub fn list_migrations() -> anyhow::Result<()> {
 	Ok(())
 }
 
+pub fn print_migration(n: u16) -> anyhow::Result<()> {
+	let parsed_up_migrations = parse_migrations(UP_MIGRATIONS)
+		.context("parsing up migrations")?;
+	let parsed_down_migrations = parse_migrations(DOWN_MIGRATIONS)
+		.context("parsing down migrations")?;
+
+	let up_migration = parsed_up_migrations
+		.get::<usize>(n.into())
+		.ok_or_else(|| anyhow!("can't find the {n}th up migration"))?;
+
+	let down_migration = parsed_down_migrations
+		.get::<usize>(parsed_down_migrations.len() - 1 - usize::from(n))
+		.ok_or_else(|| anyhow!("can't find the {n}th down migration"))?;
+
+	println!("Migration {n:0>3} (up: {up_descr}, down: {down_descr})
+Up:
+{up_sql}
+Down:
+{down_sql}",
+			 up_descr = up_migration.description,
+			 down_descr = down_migration.description,
+			 up_sql = up_migration.sql,
+			 down_sql = down_migration.sql);
+
+	Ok(())
+}
+
 async fn migrate<SkipF, TakeF>(
 	client: &mut pg::Client,
-	migration_file: &'static str,
+	migration_file: UnparsedMigrations,
 	migration_name: &'static str,
 	migration_article: &'static str,
 	connstr: &str,
@@ -117,6 +158,7 @@ where SkipF: FnMut(&Migration<'static>) -> bool,
 		.skip_while(skip_while)
 		.take_while(take_while)
 		.collect::<Vec<_>>();
+	log::debug!("migrations: {migrations:?}");
 	
 	if !migrations.last().is_some_and(|m| m.target == target) {
 		anyhow::bail!("{newer_migration:0>3}: migration not supported. Make sure the bot is up to date and try again.",
@@ -181,7 +223,7 @@ pub async fn initialize_db(profile: crate::init::Profile) -> anyhow::Result<()> 
 		.context("initializing a transaction")?;
 	// the migration separators in UP_MIGRATIONS are just comments, so running the whole thing
 	// will initialize the database to the newest migration.
-	transaction.batch_execute(UP_MIGRATIONS).await
+	transaction.batch_execute(UP_MIGRATIONS_SQL).await
 		.context("running initialization statements")?;
 	transaction.commit().await?;
 	log::info!("Database initialization successful");

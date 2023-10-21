@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::fmt;
 
 
-use crate::{pg, ts_to_id};
+use crate::{pg, ts_to_id, SuzuError};
 use crate::pgtyp::{FromSql, ToSql};
 use crate::PoiseContext;
 use crate::errors::{Result, Error, InternalError, Contextualizable, AsyncReportErr};
@@ -87,7 +87,7 @@ impl LogType {
 			UserKick => "🏌️ User Kicked",
 			UserJoin => "👤 User Joined",
 			UserLeave => "🚶 User Left",
-			VoiceUpdate => "� Voice State Update",
+			VoiceUpdate => "🎙️ Voice State Update",
 		}
 	}
 }
@@ -148,16 +148,54 @@ impl Display for LogError {
 impl StdError for LogError {}
 
 #[derive(Debug)]
-pub struct LogData {
-	monopolized_messages: Mutex<HashSet<ser::MessageId>>,
-	newest_entry_id: Mutex<HashMap<u64, ser::AuditLogEntryId>>
+pub struct MonopolizationSpace<T: Clone + Hash + Eq> {
+	map: Mutex<HashSet<T>>,
 }
 
-impl LogData {
+impl<T: Clone + Hash + Eq> MonopolizationSpace<T> {
 	pub fn new() -> Self {
 		Self {
-			monopolized_messages: Mutex::new(HashSet::new()),
-			newest_entry_id: Mutex::new(HashMap::new()),
+			map: Mutex::new(HashSet::new()),
+		}
+	}
+
+	pub fn monopolize<'a, M>(&'a self, resources: M) -> MonopolizeGuard<'a, T>
+	where M: IntoIterator<Item = T> {
+		let mut items = Vec::new();
+		let mut monitems = self.map.lock().unwrap();
+		for item in resources {
+			if monitems.insert(item.clone()) {
+				items.push(item);
+			}
+		}
+		MonopolizeGuard {
+			items,
+			itemset: &self
+		}
+	}
+
+	fn try_monopolize<'a, M>(&'a self, resources: M) -> Option<MonopolizeGuard<'a, T>>
+	where M: IntoIterator<Item = T> {
+		let mut items = Vec::new();
+		let mut monitems = self.map.lock().unwrap();
+		for item in resources {
+			if monitems.insert(item.clone()) {
+				items.push(item);
+			} else {
+				return None;
+			}
+		}
+
+		Some(MonopolizeGuard {
+			items,
+			itemset: &self
+		})
+	}
+
+	fn unmonopolize<'a, M: IntoIterator<Item = T>>(&'a self, resources: M) {
+		let mut itemg = self.map.lock().unwrap();
+		for item in resources {
+			itemg.remove(&item);
 		}
 	}
 }
@@ -165,49 +203,12 @@ impl LogData {
 #[derive(Debug, Clone)]
 pub struct MonopolizeGuard<'a, T: Clone + Hash + Eq> {
 	items: Vec<T>,
-	itemset: &'a Mutex<HashSet<T>>,
+	itemset: &'a MonopolizationSpace<T>,
 }
-
-impl LogData {
-	pub fn monopolize_messages<'a, M>(&'a self, msgs: M) -> MonopolizeGuard<'a, ser::MessageId>
-	where M: IntoIterator<Item = ser::MessageId> {
-		let mut items = Vec::new();
-		let mut monmsgs = self.monopolized_messages.lock().unwrap();
-		for msg in msgs {
-			if monmsgs.insert(msg) {
-				items.push(msg);
-			}
-		}
-		MonopolizeGuard {
-			items,
-			itemset: &self.monopolized_messages
-		}
-	}
-
-	/// checks whether check_relevancy(u, entry) hasn't been already called on this audit log or a newer one, returning true if it hasn't
-	fn check_relevancy(&self, u: u64, entry: ser::AuditLogEntryId) -> bool {
-		let mut map = self.newest_entry_id.lock().unwrap();
-		match map.entry(u) {
-			Entry::Vacant(e) => {
-				e.insert(u.into());
-				true
-			},
-			Entry::Occupied(mut e) if entry > *e.get() => {
-				e.insert(u.into());
-				true
-			},
-			_ => false,
-		}
-	}
-}
-
 
 impl<'a, T: Clone + Eq + Hash> Drop for MonopolizeGuard<'a, T> {
     fn drop(&mut self) {
-		let mut itemg = self.itemset.lock().unwrap();
-        for item in self.items.iter() {
-			itemg.remove(item);
-		}
+		self.itemset.unmonopolize(self.items().map(Clone::clone));
     }
 }
 
@@ -216,6 +217,87 @@ impl<'a, T: Clone + Eq + Hash> MonopolizeGuard<'a, T> {
 		self.items.iter()
 	}
 }
+
+pub trait Monopolizable: Clone + Eq + Hash {
+	fn get_db_field(d: &MonopolizationDatabase) -> &MonopolizationSpace<Self>;
+}
+
+macro_rules! monopolizable {
+	{$(
+		$field:ident: $fieldty:ty
+	),*} => {
+		#[derive(Debug)]
+		pub struct MonopolizationDatabase {
+			$($field: MonopolizationSpace<$fieldty>),*
+		}
+
+		impl MonopolizationDatabase {
+			fn new() -> Self {
+				Self {
+					$($field: MonopolizationSpace::new()),*
+				}
+			}
+		}
+
+		$(
+			impl Monopolizable for $fieldty {
+				fn get_db_field(d: &MonopolizationDatabase) -> &MonopolizationSpace<Self> {
+					&d.$field
+				}
+			}
+		)*
+	}
+}
+
+monopolizable! {
+	messages: ser::MessageId
+}
+
+#[derive(Debug)]
+pub struct LogData {
+	mondb: MonopolizationDatabase,
+	newest_entry_id: Mutex<HashMap<u64, ser::AuditLogEntryId>>
+}
+
+
+impl LogData {
+	pub fn new() -> Self {
+		Self {
+			mondb: MonopolizationDatabase::new(),
+			newest_entry_id: Mutex::new(HashMap::new()),
+		}
+	}
+	pub fn monopolize<'a, T, It>(&'a self, resources: It) -> MonopolizeGuard<'a, T>
+	where T: Monopolizable,
+		  It: IntoIterator<Item = T> {
+		T::get_db_field(&self.mondb).monopolize(resources)
+	}
+
+	fn try_monopolize<'a, T, It>(&'a self, resources: It) -> Option<MonopolizeGuard<'a, T>>
+	where T: Monopolizable,
+		  It: IntoIterator<Item = T> {
+		T::get_db_field(&self.mondb).try_monopolize(resources)
+	}
+
+
+	/// checks whether check_relevancy(u, entry) hasn't been already called on this audit log or a newer one,
+	/// returning true if it hasn't
+	fn check_relevancy(&self, u: u64, entry: ser::AuditLogEntryId) -> bool {
+		let mut map = self.newest_entry_id.lock().unwrap();
+		match map.entry(u) {
+			Entry::Vacant(e) => {
+				e.insert(entry);
+				true
+			},
+			Entry::Occupied(mut e) if entry > *e.get() => {
+				e.insert(entry);
+				true
+			},
+			_ => false,
+		}
+	}
+}
+
 
 
 async fn get_logch(
@@ -296,11 +378,18 @@ pub fn user_to_embed_author<'a>(
 ) -> &'a mut ser::CreateEmbedAuthor {
 	a.name(&user.name);
 
-	if let Some(avatar_url) = &user.avatar {
+	if let Some(avatar_url) = user.avatar_url() {
 		a.icon_url(avatar_url);
 	}
 	
 	a
+}
+
+fn user_is_self<'a>(
+	fwctx: FrameworkContext<'a, crate::Data, SuzuError>,
+	user: impl Into<ser::UserId>,
+) -> bool {
+	fwctx.bot_id == user.into()
 }
 
 /// retrieves the latest audit log entry for a particular action to augment log messages
@@ -436,18 +525,17 @@ pub async fn log_bot_config(
 	Ok(())
 }
 
-pub async fn log_message_edit(
+pub async fn log_message_edit<'a>(
 	http: impl AsRef<ser::Http>,
-	data: &crate::Data,
+	fwctx: FrameworkContext<'a, crate::Data, SuzuError>,
 	old: &Option<ser::Message>,
 	evt: &ser::MessageUpdateEvent
 ) -> Result<()> {
-	let monguard = data.logdata.monopolize_messages([evt.id]);
-	if !monguard.items.contains(&evt.id) { return Ok(()); };
-
+	let Some(_monguard) = fwctx.user_data.logdata.try_monopolize([evt.id]) else { return Ok(()); };
+	if evt.author.as_ref().is_some_and(|a| user_is_self(fwctx, a)) { return Ok(()); }
 	post_log(
 		http,
-		data,
+		fwctx.user_data,
 		evt.guild_id.unwrap(),
 		LogType::MessageEdit,
 		|e| {			
@@ -479,8 +567,7 @@ pub async fn log_message_delete(
 	deleted_msg_id: ser::MessageId,
 	guild_id: Option<ser::GuildId>
 ) -> Result<()> {
-	let monguard = data.logdata.monopolize_messages([deleted_msg_id]);
-	if !monguard.items.contains(&deleted_msg_id) { return Ok(()); }
+	let Some(_monguard) = data.logdata.try_monopolize([deleted_msg_id]) else { return Ok(()); };
 
 	let cached = client.cache().and_then(|c| c.message(channel_id, deleted_msg_id));
 	post_log(
@@ -515,6 +602,7 @@ pub async fn log_user_ban(
 	user: &ser::User
 ) -> Result<()> {
 	use ser::audit_log::{Action, MemberAction};
+
 	let (log_data_opt, banned_by_opt) = get_audit_data(
 		client.http(),
 		data,
@@ -529,8 +617,7 @@ pub async fn log_user_ban(
 		guild_id,
 		LogType::UserBan,
 		|e| {
-			e.author(|a| user_to_embed_author(&user, a))
-				.field("User", user.mention(), true);
+			e.field("User", user.mention(), true);
 
 			if let Some(log_data) = log_data_opt {
 				if let Some(banned_by) = banned_by_opt {
@@ -623,23 +710,35 @@ pub async fn log_voice_update(
 	http: impl AsRef<ser::Http>,
 	data: &crate::Data,
 	new_state: &ser::VoiceState,
-	old_state_opt: &Option<ser::VoiceState>
+	old_state: &Option<ser::VoiceState>
 ) -> Result<()> {
-	let Some(old_state) = old_state_opt else { return Ok(()); };
-	let states = [old_state, new_state];
-	let loggable_transitions = match states {
-		[ser::VoiceState { channel_id: old_chid, .. },
-		 ser::VoiceState { channel_id: new_chid, .. }]
+	log::debug!("new_state: {new_state:?}, old_state: {old_state:?}");
+	let loggable_transitions = match (old_state, new_state) {
+		// voice state changed while remaining
+		(Some(ser::VoiceState { channel_id: old_chid, .. }),
+		 ser::VoiceState { channel_id: new_chid, .. })
 			if old_chid == new_chid => vec![],
-		[ser::VoiceState { guild_id: Some(old_guid),
-						   channel_id: old_chid, .. },
+		// user joined a VC
+		(Some(ser::VoiceState { channel_id: None, .. }) | None,
+		 ser::VoiceState { guild_id: Some(guid),
+						   channel_id: Some(new_chid), .. })
+			=> vec![(*guid, None, Some(*new_chid))],
+		// user left a VC
+		(Some(ser::VoiceState { channel_id: Some(old_chid),
+						   guild_id: Some(guid), .. }),
+		 ser::VoiceState { channel_id: None, .. })
+			=> vec![(*guid, Some(*old_chid), None)],
+		// user switched between VCs on the same server
+		(Some(ser::VoiceState { guild_id: Some(old_guid),
+						   channel_id: old_chid, .. }),
 		 ser::VoiceState { guild_id: Some(new_guid),
-						   channel_id: new_chid, .. }]
+						   channel_id: new_chid, .. })
 			if old_guid == new_guid => vec![(*old_guid, *old_chid, *new_chid)],
-		[ser::VoiceState { guild_id: Some(old_guid),
-						   channel_id: Some(old_chid), .. },
+		// user switched between VCs on different servers
+		(Some(ser::VoiceState { guild_id: Some(old_guid),
+						   channel_id: Some(old_chid), .. }),
 		 ser::VoiceState { guild_id: Some(new_guid),
-						   channel_id: Some(new_chid), .. }]
+						   channel_id: Some(new_chid), .. })
 			if old_guid != new_guid => vec![(*old_guid, Some(*old_chid), None),
 											(*new_guid, None, Some(*new_chid))],
 		_ => vec![]
@@ -679,13 +778,13 @@ pub async fn log_voice_update(
 pub async fn log_event<'a>(
 	ctx: &'a ser::Context,
 	evt: &'a Event<'a>,
-	_: FrameworkContext<'a, crate::Data, Error>,
+	fwctx: FrameworkContext<'a, crate::Data, SuzuError>,
 	data: &crate::Data
 ) -> Result<()>	{
 	use Event::*;
 	match evt {
 		MessageUpdate { old_if_available, new: _, event } =>
-			log_message_edit(ctx, data, old_if_available, event).await?,
+			log_message_edit(ctx, fwctx, old_if_available, event).await?,
 		MessageDelete { channel_id, deleted_message_id, guild_id } =>
 			log_message_delete(ctx, data, *channel_id, *deleted_message_id, *guild_id).await?,
 		GuildBanAddition { guild_id, banned_user } =>
