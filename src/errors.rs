@@ -1,6 +1,7 @@
-use std::fmt::{Display};
+use std::fmt::Display;
 use async_trait::async_trait;
 use futures::Future;
+use interim::DateError;
 
 use std::error::Error as StdError;
 use poise::FrameworkError;
@@ -8,6 +9,7 @@ use poise::serenity_prelude as ser;
 use std::result::Result as StdResult;
 
 use crate::pg;
+use crate::remind::RemindError;
 
 mod contextualizable;
 pub use contextualizable::WithContext;
@@ -20,6 +22,7 @@ mod conversions;
 mod impl_display;
 pub(crate) mod global_handler;
 
+pub(crate) use impl_display::withctx_error_logged;
 pub type Result<T> = StdResult<T, WithContext<Error>>;
 pub type CmdResult<T> = StdResult<T, WithContext<OptError<InternalError>>>;
 
@@ -44,6 +47,7 @@ pub enum Context {
 	Webhook(crate::webhook::WebhookErrorContext),
 	Replication(crate::msgreplication::ReplicationErrorContext),
 	Purge(crate::purge::PurgeErrorContext),
+	Remind(crate::remind::RemindContext),
 }
 
 
@@ -63,7 +67,9 @@ pub enum Error {
 	ChannelNotFound,
 	MessageAlreadyCrossposted,
 	CannotCrosspostMessage,
+	DateParseError(DateError),
 
+	RemindError(RemindError),
 	Log(crate::log::LogError),
 	Internal(InternalError)
 }

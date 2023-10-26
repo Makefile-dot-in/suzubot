@@ -1,4 +1,4 @@
-#![feature(min_specialization, try_blocks, result_option_inspect, iter_array_chunks)]
+#![feature(min_specialization, try_blocks, result_option_inspect, iter_array_chunks, int_roundings)]
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use chrono::Datelike;
@@ -8,57 +8,31 @@ pub(crate) use tokio_postgres as pg;
 use std::{fmt, ops::Range, sync::Arc};
 use errors::{WithContext, Error};
 use poise::{serenity_prelude as ser, FrameworkContext};
+use tokio::sync::Mutex;
+use utils::{event_handlers, services};
 
 pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
 	purge::purge,
-	log::log,
 	init::register,
 	comp_util::component_test,
     comp_util::cache_test,
-	purge::message_stream_test
+	purge::message_stream_test,
+    remind::remind,
+	remind::reminders
 ];
 
-macro_rules! event_handlers  {
-    {$($handler:path),*} => {
-        async fn event_dispatcher<'a>(
-			ctx: &'a ser::Context,
-			evt: &'a poise::Event<'a>,
-			fwctx: FrameworkContext<'a, Data, SuzuError>,
-			data: &Data
-		) -> errors::Result<()> {
-			$(
-				$handler(ctx, evt, fwctx, data).await?;
-			)*
-			Ok(())
-		}
-    };
-}
-
-macro_rules! services {
-    ($($service:path),*$(,)?) => {
-        fn start_services(
-            ctx: &ser::Context,
-            ready: &ser::Ready,
-            data: &crate::Data
-        ) {
-            let current_user = Arc::new(ready.user.clone());
-            $(
-                tokio::spawn($service(
-                    ctx.clone(),
-                    Arc::clone(current_user),
-                    Arc::clone(data)
-                ));
-            )*
-        }
-    };
-}
-
+pub const ADMIN_COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
+	log::log,
+	remind::admin::reminders
+];
 
 event_handlers! {
 	log::log_event
 }
 
-services! {}
+services! {
+    remind::service
+}
 
 
 
@@ -168,5 +142,7 @@ pub mod errors;
 pub mod init;
 pub mod migrations;
 pub mod remind;
+pub mod admin;
+mod utils;
 mod linkable;
 mod comp_util;

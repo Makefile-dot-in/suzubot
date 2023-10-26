@@ -5,10 +5,11 @@ use std::hash::Hash;
 use std::fmt;
 
 
+use crate::utils::vec_to_u64;
 use crate::{pg, ts_to_id, SuzuError};
 use crate::pgtyp::{FromSql, ToSql};
 use crate::PoiseContext;
-use crate::errors::{Result, Error, InternalError, Contextualizable, AsyncReportErr};
+use crate::errors::{Result, Error, Contextualizable, AsyncReportErr};
 use crate::msgreplication;
 use crate::linkable::Linkable;
 use crate::truncate;
@@ -313,12 +314,8 @@ async fn get_logch(
         return Ok(None);
     };
 
-    let channelid: [u8; 8] = row
-        .try_get::<_, Vec<u8>>(0)?
-        .try_into()
-        .map_err(|_| InternalError::InvalidByteADiscordIDFormat)?;
-
-    Ok(Some(ser::ChannelId(u64::from_be_bytes(channelid))))
+    let channelid = vec_to_u64(row.try_get(0)?)?;
+    Ok(Some(ser::ChannelId(channelid)))
 }
 
 async fn set_logch(

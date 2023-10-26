@@ -81,6 +81,7 @@ async fn main() {
     env_logger::builder()
 		.filter_level(LevelFilter::Info)
 		.parse_default_env()
+		.filter_module("tracing::span", LevelFilter::Warn)
 		.init();
 
 	let init_res: Result<(), anyhow::Error> = try {

@@ -43,7 +43,7 @@ impl<T: Linkable> Display for Link<T> {
 impl Linkable for ser::GuildId {
 	type Data = ();
 	fn link_fmt(&self, f: &mut fmt::Formatter<'_>, (): &Self::Data) -> fmt::Result {
-		write!(f, "[<guild>](https://discord.com/channels/{self})")
+		write!(f, "[<guild>](<https://discord.com/channels/{self}>)")
 	}
 }
 
@@ -66,7 +66,7 @@ impl Linkable for ser::MessageId {
 impl Linkable for ser::Guild {
 	type Data = ();
 	fn link_fmt(&self, f: &mut fmt::Formatter<'_>, (): &Self::Data) -> fmt::Result {
-		write!(f, "[{name}](https://discord.com/channels/{guild})",
+		write!(f, "[{name}](<https://discord.com/channels/{guild}>)",
 			   name = &self.name,
 			   guild = self.id)
 	}

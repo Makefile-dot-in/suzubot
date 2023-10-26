@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use poise::{serenity_prelude as ser, PrefixFrameworkOptions};
-use crate::errors::global_handler::on_error;
+use crate::{errors::global_handler::on_error, admin};
 use crate::log::LogData;
 use crate::webhook::WebhookExecutor;
 use std::{collections::{HashSet, HashMap}, sync::Arc};
@@ -75,6 +75,7 @@ pub async fn run(profile: Profile) -> Result<(), anyhow::Error> {
 				.map(|f| f())
 				.filter(|cmd| profile.test_mode ||
 						!CustomCommandData::from_command_data(cmd).test_mode)
+                .chain(admin::admin(profile.test_mode).into_iter())
 				.collect::<Vec<_>>(),
 			owners: profile.owner_ids,
 			on_error: |err| Box::pin(on_error(err)),
@@ -109,7 +110,12 @@ pub async fn run(profile: Profile) -> Result<(), anyhow::Error> {
 					logdata: LogData::new(),
 				});
 
-                crate::start_services(ctx, ready, &data);
+                crate::start_services(
+                    ctx,
+                    ready,
+                    framework.shard_manager(),
+                    &data
+                );
                 Ok(data)
             })
 		})

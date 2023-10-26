@@ -1,7 +1,8 @@
 use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
-use crate::pg;
+use crate::{pg, remind::RemindError};
 
-use poise::{serenity_prelude as ser};
+use interim::DateError;
+use poise::serenity_prelude as ser;
 
 macro_rules! conversions {
 	// square brackets because angle brackets do not start a tree
@@ -68,6 +69,14 @@ conversions! {
 	(logerr: crate::log::LogError) -> Error {
 		Error::Log(logerr)
 	}
+
+	(dtperr: DateError) -> Error {
+		Error::DateParseError(dtperr)
+	}
+
+	(remerr: RemindError) -> Error {
+		Error::RemindError(remerr)
+	}
 }
 
 impl From<crate::log::LogErrorContext> for Context {
@@ -94,3 +103,8 @@ impl From<crate::purge::PurgeErrorContext> for Context {
     }
 }
 
+impl From<crate::remind::RemindContext> for Context {
+    fn from(source: crate::remind::RemindContext) -> Self {
+		Context::Remind(source)
+    }
+}

@@ -21,6 +21,7 @@ impl Display for Context {
             Webhook(webhctx) => write!(f, "{webhctx}"),
             Replication(repctx) => write!(f, "{repctx}"),
             Purge(purgectx) => write!(f, "{purgectx}"),
+			Remind(remindctx) => write!(f, "{remindctx}"),
 		}
     }
 }
@@ -62,6 +63,10 @@ impl Display for Error {
 				write!(f, "Message already crossposted"),
 			CannotCrosspostMessage =>
 				write!(f, "Cannot crosspost message"),
+			DateParseError(e) =>
+				write!(f, "{e}"),
+			RemindError(e) =>
+				write!(f, "{e}"),
 			Log(e) =>
 				write!(f, "{e}"),
 			Internal(_) =>
@@ -104,7 +109,7 @@ impl<'a> Display for LoggedContext<'a> {
 	}
 }
 
-fn withctx_error_logged(e: &WithContext<Error>) -> LoggedMappedWithContext<'_, Error, LoggedError> {
+pub(crate) fn withctx_error_logged(e: &WithContext<Error>) -> LoggedMappedWithContext<'_, Error, LoggedError> {
 	LoggedMappedWithContext(e, LoggedError)
 }
 
