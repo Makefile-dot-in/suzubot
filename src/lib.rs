@@ -31,7 +31,7 @@ event_handlers! {
 }
 
 services! {
-    remind::service
+    remind::service::service
 }
 
 

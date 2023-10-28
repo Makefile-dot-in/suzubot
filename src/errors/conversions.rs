@@ -1,5 +1,6 @@
 use super::{Error, InternalError, Context, OptError, WithContext, Contextualizable};
-use crate::{pg, remind::RemindError};
+use crate::{pg, remind::RemindError, utils::GetLatencyError};
+
 
 use interim::DateError;
 use poise::serenity_prelude as ser;
@@ -76,6 +77,10 @@ conversions! {
 
 	(remerr: RemindError) -> Error {
 		Error::RemindError(remerr)
+	}
+
+	(glerr: GetLatencyError) -> Error {
+		Error::GetLatencyError(glerr)
 	}
 }
 

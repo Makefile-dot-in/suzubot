@@ -1,5 +1,5 @@
 use crate::comp_util::{ask_yn, edit};
-use crate::errors::{Contextualizable, Error, AsyncReportErr, Result};
+use crate::errors::{Contextualizable, Error, AsyncReportErr, Result, LogError};
 use crate::log::{LogErrorContext, LogType};
 use crate::cmd_data;
 
@@ -145,13 +145,12 @@ pub async fn purge(
     ).map_err(|e| e.contextualize(LogErrorContext::Log(ctx.guild_id().unwrap(), LogType::Purge)));
 
 
-    let purgeres = if sequential {
-        sequential_purge(ctx, &handle, logfut, delfut).await
+    if sequential {
+        sequential_purge(ctx, &handle, logfut, delfut).await?;
     } else {
-        concurrent_purge(ctx, logfut, delfut).await
+        concurrent_purge(ctx, logfut, delfut).await?;
     };
 
-    purgeres.report_err(|err| handle.edit(ctx, |e| e.content(err))).await?;
 
     handle.edit(ctx, |e| e.content("Purge successful!")).await?;
     Ok(())
@@ -241,8 +240,8 @@ async fn sequential_purge(
          ctx,
          ctx.author(),
          edit(handle, ctx, format!("⚠️ **WARNING:** logging failed: {logerr}. \
-                              The purged messages will be **irrevocably** lost.\
-                              Proceed anyway?"))
+                                    The purged messages will be **irrevocably** lost.\
+                                    Proceed anyway?"))
       ).await?;
       match response {
          Some(true) => (),
@@ -262,7 +261,7 @@ async fn concurrent_purge(
    deletion: impl Future<Output = Result<()>> + Send
 ) -> Result<()> {
    let logfut_with_err = async move {
-      log.await.report_err(|err| ctx.say(err)).await.ok();
+      log.await.report_err(|err| ctx.say(err)).await.logerr();
       Ok(())
    };
    futures::try_join!(logfut_with_err, deletion)?;

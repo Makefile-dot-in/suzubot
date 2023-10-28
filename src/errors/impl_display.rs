@@ -65,6 +65,8 @@ impl Display for Error {
 				write!(f, "Cannot crosspost message"),
 			DateParseError(e) =>
 				write!(f, "{e}"),
+			GetLatencyError(e) =>
+				write!(f, "{e}"),
 			RemindError(e) =>
 				write!(f, "{e}"),
 			Log(e) =>

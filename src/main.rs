@@ -82,6 +82,7 @@ async fn main() {
 		.filter_level(LevelFilter::Info)
 		.parse_default_env()
 		.filter_module("tracing::span", LevelFilter::Warn)
+		.filter_module("serenity", LevelFilter::Warn)
 		.init();
 
 	let init_res: Result<(), anyhow::Error> = try {

@@ -1,14 +1,12 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
-use std::time::Duration as StdDuration;
 use chrono::{DateTime, Utc};
-use tokio::sync::Mutex;
 use crate::comp_util::{ListElementModel, self};
 use crate::linkable::Linkable;
 use crate::utils::ParsedDatetime;
 use crate::{PoiseContext, fmttime_discord, truncate};
-use crate::errors::{Error, LogError};
-use crate::{pg, pgtyp, utils::vec_to_u64, errors::{Contextualizable, withctx_error_logged}};
+use crate::errors::Error;
+use crate::{pg, pgtyp, utils::vec_to_u64, errors::Contextualizable};
 use pgtyp::ToSql;
 use crate::{ser, errors::Result};
 use ser::Mentionable;
@@ -23,6 +21,7 @@ pub enum RemindContext {
     },
     ParsingTime,
     AddingReminder,
+    DeterminingLatency,
 }
 
 impl fmt::Display for RemindContext {
@@ -35,6 +34,7 @@ impl fmt::Display for RemindContext {
             RemindingOf { id } => write!(f, "reminding (id = {id})"),
             ParsingTime => write!(f, "parsing time"),
             AddingReminder => write!(f, "adding reminder"),
+            DeterminingLatency => write!(f, "determining gateway latency")
         }
     }
 }
@@ -293,67 +293,108 @@ impl ListElementModel for Reminder {
     }
 }
 
-pub async fn service(
-    ctx: ser::Context,
-    _user: Arc<ser::CurrentUser>,
-    shardmgr: Arc<Mutex<ser::ShardManager>>,
-    data: crate::Data
-) {
-    let res: Result<_> = try {
-        let conn = data.dbconn.dedicated_connection().await?;
-        let stmt = Reminder::active_reminders_prepare(&conn).await?;
-        (conn, stmt)
-    };
+pub mod service {
+    use crate::errors::{withctx_error_logged, Result, Contextualizable, Error, LogError};
+    use crate::utils::get_latency;
+    use crate::remind::RemindContext;
+    use crate::pg;
+    use super::Reminder;
 
-    let (mut conn, stmt) = match res {
-        Ok(x) => x,
-        Err(e) => {
-            log::error!("failed to initialize reminder service: {err}",
-                        err = withctx_error_logged(&e));
-            return
+    use std::sync::Arc;
+    use std::time::Duration as StdDuration;
+    use poise::serenity_prelude as ser;
+    use tokio::sync::Mutex;
+
+    async fn run_reminders(
+        ctx: &ser::Context,
+        shardmgr: &Arc<Mutex<ser::ShardManager>>,
+        conn: &mut pg::Client,
+        stmt: &pg::Statement
+    ) -> Result<()> {
+        let trans = conn.transaction().await?;
+        let queue = Reminder::active_reminders(&trans, &stmt)
+            .await
+            .contextualize(RemindContext::GettingActiveReminders)?;
+
+        let latency_opt = get_latency(shardmgr, ser::ShardId(ctx.shard_id))
+            .await
+            .map_err(Error::from)
+            .contextualize(RemindContext::DeterminingLatency)?;
+
+        match latency_opt {
+            Some(latency) if latency < StdDuration::from_secs(120) => {},
+            Some(latency) => {
+                log::warn!("Gateway latency is {latency_s} s, skipping an iteration",
+                           latency_s = latency.as_secs());
+                return Ok(())
+            },
+            None => {
+                log::warn!("Gateway latency cannot be determined, skipping an iteration");
+                return Ok(())
+            },
         }
-    };
 
-    loop {
-        tokio::time::sleep(StdDuration::from_secs(60)).await;
-
-        let res: Result<()> = try {
-            let trans = conn.transaction().await?;
-            let queue = Reminder::active_reminders(&trans, &stmt)
+        for reminder in queue {
+            reminder
+                .remind(&ctx)
                 .await
-                .contextualize(RemindContext::GettingActiveReminders)?;
+                .contextualize(RemindContext::RemindingOf { id: reminder.id })
+                .logerr();
+        }
+        trans.commit().await?;
+        Ok(())
+    }
 
-            {
-                let shardmgrguard = shardmgr.lock().await;
-                let shardmgrmapguard = shardmgrguard.runners.lock().await;
-                match shardmgrmapguard.get(&ser::ShardId(ctx.shard_id)) {
-                    Some(shardinfo) => {
-                        let should_skip = !shardinfo.latency
-                            .is_some_and(|l| l < StdDuration::from_secs(120));
+    // calls run_reminder repeatedly with a 60 minute interval.
+    async fn run_reminders_repeatedly(
+        ctx: &ser::Context,
+        shardmgr: &Arc<Mutex<ser::ShardManager>>,
+        conn: &mut pg::Client,
+        stmt: &pg::Statement
+    ) {
+        loop {
+            tokio::time::sleep(StdDuration::from_secs(60)).await;
+            if let Err(e) = run_reminders(ctx, shardmgr, conn, stmt).await {
+                if conn.is_closed() {
+                    // if the connection is cloned we probably can't process any event
+                    log::error!("Error: {e}. Detected database closure, returning...");
+                    return;
+                }
 
-                        if should_skip {
-                            log::warn!("skipping an iteration due to latency being too high");
-                            continue;
-                        }
-                    },
-                    None => {
-                        log::error!("no shard with the current shard ID in shard map");
-                        continue
-                    }
-                };
+                log::error!("Error: {e}");
             }
+        }
+    }
+    pub async fn service(
+        ctx: ser::Context,
+        _user: Arc<ser::CurrentUser>,
+        shardmgr: Arc<Mutex<ser::ShardManager>>,
+        data: crate::Data
+    ) -> ! {
+        loop {
+            log::info!("Starting remind service...");
+            let res: Result<_> = try {
+                let conn = data.dbconn.dedicated_connection().await?;
+                let stmt = Reminder::active_reminders_prepare(&conn).await?;
+                (conn, stmt)
+            };
 
-            for reminder in queue {
-                reminder.remind(&ctx).await
-                    .contextualize(RemindContext::RemindingOf { id: reminder.id })
-                    .logerr();
-            }
-            trans.commit().await?;
-        };
+            log::info!("Connection to database successful");
 
-        if let Err(e) = res {
-            log::error!("failed to process reminders: {err}",
-                        err = withctx_error_logged(&e));
+            let (mut conn, stmt) = match res {
+                Ok(x) => x,
+                Err(e) => {
+                    log::error!("Failed to initialize reminder service: {err}",
+                                err = withctx_error_logged(&e));
+                    log::info!("Trying again in 1 minute...");
+                    tokio::time::sleep(StdDuration::from_secs(60)).await;
+                    continue;
+                }
+            };
+
+            run_reminders_repeatedly(&ctx, &shardmgr, &mut conn, &stmt).await;
+            log::info!("Attempting to restart remind service...");
+            tokio::time::sleep(StdDuration::from_secs(60)).await;
         }
     }
 }
@@ -364,15 +405,15 @@ pub async fn remind(
     ctx: PoiseContext<'_>,
     #[max_length = 50]
     #[description = "Time to remind at"]
-    at: ParsedDatetime,
+    when: ParsedDatetime,
     #[description = "Description to remind with"]
     #[max_length = 300]
     description: String
 ) -> Result<()> {
     let now = Utc::now();
-    if now > *at {
+    if now > *when {
         ctx.say(format!("Error: the time to remind at must be in the future (you specified <t:{ts}>, which is <t:{ts}:R>)",
-                        ts = at.timestamp())).await?;
+                        ts = when.timestamp())).await?;
         return Ok(());
     }
 
@@ -383,8 +424,8 @@ pub async fn remind(
         channel_id: ctx.channel_id(),
         creator_id: ctx.author().id,
         creation_time: *ctx.created_at(),
-        target_time: at.into(),
-        description
+        target_time: when.into(),
+        description: description.clone()
     };
 
     let id = reminder
@@ -392,8 +433,8 @@ pub async fn remind(
         .await
         .contextualize(RemindContext::AddingReminder)?;
 
-    ctx.say(format!("Reminder set for {ts} (ID: {id}).",
-                    ts = fmttime_discord((*at).into()))).await?;
+    ctx.say(format!("Reminder set for {ts} (ID: {id}): {description}.",
+                    ts = fmttime_discord((*when).into()))).await?;
 
     Ok(())
 }

@@ -4,14 +4,13 @@ use crate::{errors::global_handler::on_error, admin};
 use crate::log::LogData;
 use crate::webhook::WebhookExecutor;
 use std::{collections::{HashSet, HashMap}, sync::Arc};
-use crate::cmd_data;
 
 
 
 use serde::{Deserialize, Serialize};
 use crate::{CustomCommandData, PoiseContext};
 
-#[poise::command(prefix_command, owners_only, custom_data = "cmd_data().test_mode()")]
+#[poise::command(prefix_command, owners_only)]
 pub async fn register(ctx: PoiseContext<'_>) -> crate::errors::Result<()> {
 	Ok(poise::builtins::register_application_commands_buttons(ctx).await?)
 }

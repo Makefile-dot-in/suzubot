@@ -10,6 +10,7 @@ use std::result::Result as StdResult;
 
 use crate::pg;
 use crate::remind::RemindError;
+use crate::utils::GetLatencyError;
 
 mod contextualizable;
 pub use contextualizable::WithContext;
@@ -68,6 +69,7 @@ pub enum Error {
 	MessageAlreadyCrossposted,
 	CannotCrosspostMessage,
 	DateParseError(DateError),
+	GetLatencyError(GetLatencyError),
 
 	RemindError(RemindError),
 	Log(crate::log::LogError),

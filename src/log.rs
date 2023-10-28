@@ -9,7 +9,7 @@ use crate::utils::vec_to_u64;
 use crate::{pg, ts_to_id, SuzuError};
 use crate::pgtyp::{FromSql, ToSql};
 use crate::PoiseContext;
-use crate::errors::{Result, Error, Contextualizable, AsyncReportErr};
+use crate::errors::{Result, Error, Contextualizable};
 use crate::msgreplication;
 use crate::linkable::Linkable;
 use crate::truncate;
@@ -813,20 +813,14 @@ pub async fn log(
 	match channel {
 		Some(chid) => {
 			set_logch(ctx.data(), guild_id, log_type, chid).await
-				.contextualize(LogErrorContext::SettingLogChannel(guild_id, log_type, chid))
-				.report_err(|err| ctx.say(err))
-				.await?;
+				.contextualize(LogErrorContext::SettingLogChannel(guild_id, log_type, chid))?;
 			ctx.say(format!("Successfully set the channel for `{log_type}` to {channel_mention}",
 							channel_mention = chid.mention()))
-				.await?;
+			   .await?;
 		}
 		None => {
-			del_logch(ctx.data(), guild_id, log_type).await
-				.contextualize(LogErrorContext::DisablingLogging(guild_id, log_type))
-				.report_err(|err| ctx.say(err))
-				.await?;
-			ctx.say(format!("Successfully disabled logging for `{log_type}`."))
-				.await?;
+			del_logch(ctx.data(), guild_id, log_type).await?;
+			ctx.say(format!("Successfully disabled logging for `{log_type}`.")).await?;
 		}
 	}
 
@@ -835,7 +829,7 @@ pub async fn log(
 		e.field("Log type", log_type, true);
 		match channel {
 			Some(chid) => e.field("State", "Enabled", true)
-				.field("Channel", chid.mention(), true),
+						   .field("Channel", chid.mention(), true),
 			None => e.field("State", "Disabled", true)
 		}
 	}).await.ok();

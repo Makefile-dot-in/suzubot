@@ -73,17 +73,15 @@ pub async fn component_test(ctx: PoiseContext<'_>) -> Result<()> {
             })
         })
     }).await?;
-    let interaction = handle.message().await?
-                            .await_component_interaction(ctx)
-                            .await;
+    let interaction = handle
+        .message()
+        .await?
+        .await_component_interaction(ctx)
+        .await;
 
 
     match interaction {
         Some(int) => {
-            /*int.create_interaction_response(ctx, |r| {
-            r.kind(ser::InteractionResponseType::UpdateMessage)
-            .interaction_response_data(|d| d.components(|c| c).content("Meow"))
-        }).await?;*/
             int.defer(ctx).await?;
         },
         None => {
@@ -186,8 +184,7 @@ where Item: ListElementModel,
 
     let mut pagenum = 0;
     let (items, total, newpagenum) = generator(pagenum)
-        .await
-        .inspect_err(|err| log::error!("{err}"))?;
+        .await?;
     pagenum = newpagenum;
     let replyh = ctx.send(|m| {
        m.embed(|e| { *e = embed(&title, items, pagenum, total); e })
@@ -210,9 +207,7 @@ where Item: ListElementModel,
             _ => continue,
         }
 
-        let Ok((items, total, newpagenum)) = generator(pagenum)
-            .await
-            .inspect_err(|err| log::error!("{err}"))
+        let Ok((items, total, newpagenum)) = generator(pagenum).await
         else { continue };
         pagenum = newpagenum;
 
