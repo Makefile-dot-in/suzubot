@@ -18,7 +18,8 @@ pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
     comp_util::cache_test,
 	purge::message_stream_test,
     remind::remind,
-	remind::reminders
+	remind::reminders,
+	emojisteal::emojisteal
 ];
 
 pub const ADMIN_COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
@@ -143,6 +144,7 @@ pub mod init;
 pub mod migrations;
 pub mod remind;
 pub mod admin;
+pub mod emojisteal;
 mod utils;
 mod linkable;
 mod comp_util;
