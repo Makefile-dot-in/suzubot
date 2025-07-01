@@ -1,4 +1,5 @@
 --# MIGRATION: 002 Reminders
+DROP TABLE modmail;
 
 --# MIGRATION: 001 More logging
 DROP TABLE reminders;

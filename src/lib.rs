@@ -1,4 +1,4 @@
-#![feature(min_specialization, try_blocks, result_option_inspect, iter_array_chunks, int_roundings)]
+#![feature(min_specialization, try_blocks, iter_array_chunks, int_roundings)]
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
 use chrono::Datelike;
@@ -24,11 +24,13 @@ pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
 
 pub const ADMIN_COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
 	log::log,
-	remind::admin::reminders
+	remind::admin::reminders,
+	modmail::modmail,
 ];
 
 event_handlers! {
-	log::log_event
+	log::log_event,
+	modmail::modmail_process_events
 }
 
 services! {
@@ -143,6 +145,7 @@ pub mod errors;
 pub mod init;
 pub mod migrations;
 pub mod remind;
+pub mod modmail;
 pub mod admin;
 pub mod emojisteal;
 mod utils;

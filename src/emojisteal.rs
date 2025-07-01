@@ -1,5 +1,4 @@
 use crate::ser;
-use crate::Error;
 use crate::{errors::Result, PoiseContext};
 use base64::Engine;
 use lazy_static::lazy_static;

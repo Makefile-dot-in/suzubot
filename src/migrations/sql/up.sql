@@ -37,3 +37,15 @@ CREATE TABLE reminders (
 CREATE INDEX reminders_target_time ON reminders (target_time);
 
 UPDATE suzu_table_metadata SET current_migration = 002;
+
+--# MIGRATION: 003 Modmail
+
+CREATE TABLE modmail (
+	guild_id bytea PRIMARY KEY,
+	ticket_num INTEGER NOT NULL DEFAULT 0,
+	modmailch bytea NOT NULL,
+	modmailmsg bytea NOT NULL,
+	staff_role bytea NOT NULL
+);
+
+UPDATE suzu_table_metadata SET current_migration = 003;
