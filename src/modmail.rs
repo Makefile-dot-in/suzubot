@@ -148,6 +148,8 @@ async fn start_modmail(compinter: &ser::MessageComponentInteraction, data: &crat
         t.name(format_args!("Ticket {ticket_num:04}", ticket_num = settings.ticket_num))
     }).await?;
 
+    thread.edit_thread(ctx, |t| t.invitable(false)).await?;
+
     settings.ticket_num += 1;
     settings.update(gid, &trans).await?;
     trans.commit().await?;
