@@ -530,6 +530,9 @@ pub async fn log_message_edit<'a>(
 ) -> Result<()> {
 	let Some(_monguard) = fwctx.user_data.logdata.try_monopolize([evt.id]) else { return Ok(()); };
 	if evt.author.as_ref().is_some_and(|a| user_is_self(fwctx, a)) { return Ok(()); }
+	if evt.edited_timestamp.is_none_or(|t| t.signed_duration_since(chrono::Utc::now()) > chrono::TimeDelta::minutes(5)) {
+		return Ok(());
+	}
 	post_log(
 		http,
 		fwctx.user_data,
