@@ -579,6 +579,9 @@ pub async fn log_message_delete(
 			if let Some(message) = &cached {
 				e.author(|a| user_to_embed_author(&message.author, a));
 				e.field("Author", message.author.mention(), true);
+				if let Some(interaction) = message.interaction.as_ref() {
+					e.field("Invoked by", interaction.user.mention(), true);
+				}
 			}
 			
 			e.field("Channel", channel_id.mention(), true);
