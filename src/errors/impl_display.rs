@@ -111,7 +111,7 @@ impl<'a> Display for LoggedContext<'a> {
 	}
 }
 
-pub(crate) fn withctx_error_logged(e: &WithContext<Error>) -> LoggedMappedWithContext<'_, Error, LoggedError> {
+pub(crate) fn withctx_error_logged(e: &WithContext<Error>) -> LoggedMappedWithContext<'_, Error, LoggedError<'_>> {
 	LoggedMappedWithContext(e, LoggedError)
 }
 
