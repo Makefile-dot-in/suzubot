@@ -1,7 +1,10 @@
+use std::borrow::Cow;
+
 use crate::errors::LogError;
 use crate::ser;
 use crate::errors::Result;
 use crate::utils::vec_to_u64;
+use crate::comp_util::ask_yn;
 use poise::dispatch::FrameworkContext;
 use ser::Mentionable;
 use poise::Event;
@@ -67,6 +70,8 @@ pub async fn modmail(
     ticket_num: Option<i32>,
     #[description = "Staff role"]
     staff_role: Option<ser::RoleId>,
+    #[description = "Button name"]
+    button_name: Option<String>,
 ) -> Result<()> {
     let mut conn = ctx.data().dbconn.get().await?;
     let trans = conn.transaction().await?;
@@ -75,7 +80,7 @@ pub async fn modmail(
         r.components(|c| c.create_action_row(|r| {
             r.create_button(|b| {
                 b.emoji('📩')
-                .label("Message the admins")
+                .label(button_name.as_deref().unwrap_or("Message the admins"))
                 .custom_id("start_modmail")
             })
         }))
@@ -143,13 +148,31 @@ async fn start_modmail(compinter: &ser::MessageComponentInteraction, data: &crat
     let trans = conn.transaction().await?;
     let Some(mut settings) = Modmail::lookup(&trans, gid).await? else { return Ok(()) };
     if settings.modmailmsg != compinter.message.id { return Ok(()) };
+    let confirmation = ask_yn(ctx, &compinter.user, async |ar| {
+        compinter.create_interaction_response(ctx, |r| {
+            r.kind(ser::InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|m| {
+                    m.content("Are you sure?")
+                        .ephemeral(true)
+                        .components(|c| c.add_action_row(ar))
+                })
+        }).await?;
+        Ok(Cow::Owned(compinter.get_interaction_response(ctx).await?))
+    }).await?.unwrap_or(false);
 
+    if !confirmation {
+        compinter.edit_original_interaction_response(ctx, |m| {
+            m.components(|c| c)
+                .content("Modmail cancelled")
+        }).await?;
+        return Ok(());
+    }
+    
     let thread = settings.modmailch.create_private_thread(ctx, |t| {
         t.name(format_args!("Ticket {ticket_num:04}", ticket_num = settings.ticket_num))
     }).await?;
 
     thread.edit_thread(ctx, |t| t.invitable(false)).await?;
-
     settings.ticket_num += 1;
     settings.update(gid, &trans).await?;
     trans.commit().await?;
@@ -166,12 +189,9 @@ async fn start_modmail(compinter: &ser::MessageComponentInteraction, data: &crat
         }))
     }).await?;
 
-    compinter.create_interaction_response(ctx, |ir| {
-        ir.kind(ser::InteractionResponseType::ChannelMessageWithSource)
-          .interaction_response_data(|m| {
-              m.content(format_args!("Created new ticket: {thread}", thread = thread.mention()))
-               .ephemeral(true)
-          })
+    compinter.edit_original_interaction_response(ctx, |m| {
+        m.content(format_args!("Created new ticket: {thread}", thread = thread.mention()))
+            .components(|c| c)
     }).await?;
     Ok(())
 }
