@@ -36,28 +36,31 @@ pub const DEL_LOGCH: &str = "DELETE FROM log_channels WHERE server_id = $1 AND l
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ToSql, FromSql, ChoiceParameter)]
 #[postgres(name = "logtype")]
 pub enum LogType {
-	#[name = "purge"]
+    #[name = "purge"]
     Purge,
-	#[name = "bot_config"]
-	BotConfig,
-	
-	#[name = "message_edit"]
-	MessageEdit,
-	#[name = "message_delete"]
-	MessageDelete,
+    #[name = "bot_config"]
+    BotConfig,
+    
+    #[name = "message_edit"]
+    MessageEdit,
+    #[name = "message_delete"]
+    MessageDelete,
 
-	#[name = "user_ban"]
-	UserBan,
-	#[name = "user_kick"]
-	UserKick,
+    #[name = "user_ban"]
+    UserBan,
+    #[name = "user_kick"]
+    UserKick,
 
-	#[name = "user_join"]
-	UserJoin,
-	#[name = "user_leave"]
-	UserLeave,
+    #[name = "user_join"]
+    UserJoin,
+    #[name = "user_leave"]
+    UserLeave,
 
-	#[name = "voice_update"]
-	VoiceUpdate,
+    #[name = "voice_update"]
+    VoiceUpdate,
+
+    #[name = "modmail"]
+    Modmail
 }
 
 impl LogType {
@@ -65,15 +68,16 @@ impl LogType {
 		use LogType::*;
 		use ser::Color;
 		match self {
-			Purge => Color::GOLD,
-			BotConfig => Color::KERBAL,
-			MessageEdit => Color::BLITZ_BLUE,
-			MessageDelete => Color::RED,
-			UserBan => Color::DARK_RED,
-			UserKick => Color::FOOYOO,
-			UserJoin => Color::DARK_BLUE,
-			UserLeave => Color::FABLED_PINK,
-			VoiceUpdate => Color::TEAL,
+		    Purge => Color::GOLD,
+		    BotConfig => Color::KERBAL,
+		    MessageEdit => Color::BLITZ_BLUE,
+		    MessageDelete => Color::RED,
+		    UserBan => Color::DARK_RED,
+		    UserKick => Color::FOOYOO,
+		    UserJoin => Color::DARK_BLUE,
+		    UserLeave => Color::FABLED_PINK,
+		    VoiceUpdate => Color::TEAL,
+                    Modmail => Color::from(0x00fffb)
 		}
 	}
 
@@ -88,7 +92,8 @@ impl LogType {
 			UserKick => "🏌️ User Kicked",
 			UserJoin => "👤 User Joined",
 			UserLeave => "🚶 User Left",
-			VoiceUpdate => "🎙️ Voice State Update",
+		    VoiceUpdate => "🎙️ Voice State Update",
+                    Modmail => "📩 New Modmail ticket"
 		}
 	}
 }
@@ -801,6 +806,29 @@ pub async fn log_event<'a>(
 		_ => {},
 	}
 	Ok(())
+}
+
+pub async fn log_modmail(
+    ctx: &ser::Context,
+    user: &ser::User,
+    data: &crate::Data,
+    guild: ser::GuildId,
+    channel: ser::ChannelId,
+    thread: ser::ChannelId
+) -> Result<()> {
+    post_log(
+        ctx.http(),
+        data,
+        guild,
+        LogType::Modmail,
+        |e| {
+            e.field("User", user.mention(), true)
+                .field("Channel", channel.mention(), true)
+                .field("Ticket thread", thread.mention(), true)
+                .author(|a| user_to_embed_author(user, a))
+        }
+    ).await?;
+    Ok(())
 }
 
 /// Sets the channel for a log type.

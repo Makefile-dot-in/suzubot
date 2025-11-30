@@ -49,3 +49,9 @@ CREATE TABLE modmail (
 );
 
 UPDATE suzu_table_metadata SET current_migration = 003;
+
+--# MIGRATION: 004 Modmail logging
+
+ALTER TYPE logtype ADD VALUE 'Modmail';
+
+UPDATE suzu_table_metadata SET current_migration = 004;

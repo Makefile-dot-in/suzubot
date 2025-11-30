@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 
+use crate::errors::Contextualizable as _;
 use crate::errors::LogError;
+use crate::log::log_modmail;
+use crate::log::LogErrorContext;
+use crate::log::LogType;
 use crate::ser;
 use crate::errors::Result;
 use crate::utils::vec_to_u64;
@@ -171,6 +175,18 @@ async fn start_modmail(compinter: &ser::MessageComponentInteraction, data: &crat
     let thread = settings.modmailch.create_private_thread(ctx, |t| {
         t.name(format_args!("Ticket {ticket_num:04}", ticket_num = settings.ticket_num))
     }).await?;
+
+    let guild_id = compinter.guild_id.expect("modmail message not in server");
+    log_modmail(
+        ctx,
+        &compinter.user,
+        &data,
+        guild_id,
+        compinter.channel_id,
+        thread.id
+    ).await
+     .contextualize(LogErrorContext::Log(guild_id, LogType::Modmail))
+     .logerr();
 
     thread.edit_thread(ctx, |t| t.invitable(false)).await?;
     settings.ticket_num += 1;

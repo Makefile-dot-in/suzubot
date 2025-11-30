@@ -1,3 +1,7 @@
+--# MIGRATION: 003 Modmail logging
+
+-- I don't really care much for the precise details of this file and removing entries from logtype is a pain in the ass.
+
 --# MIGRATION: 002 Reminders
 DROP TABLE modmail;
 
