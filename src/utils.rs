@@ -1,9 +1,14 @@
-use std::{str::FromStr, ops::{DerefMut, Deref}, fmt, sync::Arc};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+    str::FromStr,
+    sync::Arc,
+};
 
-use crate::errors::{Result, InternalError};
+use crate::errors::{InternalError, Result};
+use poise::serenity_prelude as ser;
 use std::result::Result as StdResult;
 use std::time::Duration as StdDuration;
-use poise::serenity_prelude as ser;
 
 pub fn vec_to_u64(vec: Vec<u8>) -> Result<u64> {
     let array: [u8; 8] = vec
@@ -29,7 +34,6 @@ macro_rules! event_handlers  {
 }
 use chrono::{DateTime, Utc};
 pub(super) use event_handlers;
-
 
 macro_rules! services {
     ($($service:path),*$(,)?) => {
@@ -93,8 +97,7 @@ impl fmt::Display for GetLatencyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use GetLatencyError::*;
         match self {
-            ShardIDNotInMap =>
-                write!(f, "shard ID not in map")
+            ShardIDNotInMap => write!(f, "shard ID not in map"),
         }
     }
 }
@@ -108,7 +111,7 @@ pub async fn get_latency(
 
     match shardmgrmapguard.get(&shardid) {
         Some(shardinfo) => Ok(shardinfo.latency),
-        None => Err(GetLatencyError::ShardIDNotInMap)
+        None => Err(GetLatencyError::ShardIDNotInMap),
     }
 }
 

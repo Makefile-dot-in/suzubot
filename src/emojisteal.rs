@@ -1,9 +1,9 @@
 use crate::ser;
 use crate::{errors::Result, PoiseContext};
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
 use lazy_static::lazy_static;
 use regex::Regex;
-use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 
 lazy_static! {
     static ref EMOJI_REGEX: Regex = Regex::new(r"<a?:[\w_]+:\d+>").unwrap();
@@ -26,15 +26,20 @@ pub async fn emojisteal(
         .filter_map(|e| ser::parse_emoji(e.as_str()));
     let client = reqwest::Client::new();
     for emoji in emojis {
-        let Ok(res) = client.get(&emoji.url())
-            .send()
-            .await
-        else { continue };
-        let Some(mime) = res.headers().get("Content-Type")
+        let Ok(res) = client.get(&emoji.url()).send().await else {
+            continue;
+        };
+        let Some(mime) = res
+            .headers()
+            .get("Content-Type")
             .and_then(|x| x.to_str().ok())
             .map(str::to_owned)
-        else { continue };
-        let Ok(bytes) = res.bytes().await else { continue };
+        else {
+            continue;
+        };
+        let Ok(bytes) = res.bytes().await else {
+            continue;
+        };
         let b64 = BASE64_ENGINE.encode(bytes);
         let emoji_data = format!("data:{mime};base64,{b64}");
         guild_id.create_emoji(ctx, &emoji.name, &emoji_data).await?;
