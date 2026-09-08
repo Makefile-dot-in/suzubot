@@ -1,4 +1,10 @@
---# MIGRATION: 003 Modmail logging
+--# MIGRATION: 005 Ban command
+
+DROP TABLE canaries;
+DROP TYPE canaryaction;
+DROP TYPE canarytrigger;
+
+--# MIGRATION: 003 Modmail
 
 -- I don't really care much for the precise details of this file and removing entries from logtype is a pain in the ass.
 

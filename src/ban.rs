@@ -66,12 +66,24 @@ lazy_static! {
     static ref TEMPLATE_VAR_REGEX: Regex = Regex::new(r"\$([a-zA-Z]+)").unwrap();
 }
 
-async fn dm_user(
+pub async fn dm_user(
     ctx: &impl ser::CacheHttp,
     user: ser::UserId,
-    settings: &BanSettings,
+    guild: ser::GuildId,
+    data: &crate::Data,
     reason: &str,
 ) -> Result<()> {
+    let settings = BanSettings::lookup(data, guild)
+        .await?
+    .unwrap_or_else(|| BanSettings {
+        template: format!("You have been banned from {guild_name} for the following reason: $reason",
+                          guild_name = match guild.name(ctx.cache().unwrap()) {
+                              Some(g) => g,
+                              None => guild.link(()).to_string()
+                          })
+        });
+
+    
     let message_text = TEMPLATE_VAR_REGEX.replace_all(&settings.template, |m: &Captures<'_>| match m.extract().1 {
         ["reason"] => Cow::Borrowed(&*reason),
         [unknown] => Cow::Owned(format!("${unknown}"))
@@ -97,20 +109,7 @@ pub async fn ban(
 )  -> Result<()> {
     let dmd = dmd.unwrap_or(0);
     let guild = ctx.guild_id().unwrap();
-    let settings = BanSettings::lookup(ctx.data(), guild)
-        .await?;
-    let settings = match settings {
-        Some(s) => s,
-        None => BanSettings {
-            template: format!("You have been banned from {guild_name} for the following reason: $reason",
-                              guild_name = match guild.name(ctx) {
-                                  Some(g) => g,
-                                  None => guild.link(()).to_string()
-                              })
-        }
-    };
-
-    let dmresult = dm_user(&ctx, user, &settings, &reason)
+    let dmresult = dm_user(&ctx, user, guild, &ctx.data(), &reason)
         .await
         .contextualize(BanContext::DmingUser(user));
     

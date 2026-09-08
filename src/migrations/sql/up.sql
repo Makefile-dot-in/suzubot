@@ -62,3 +62,20 @@ CREATE TABLE ban_messages(
        guild_id bytea PRIMARY KEY,
        template text NOT NULL
 );
+
+UPDATE suzu_table_metadata SET current_migration = 005;
+
+--# MIGRATION: 006 Canary
+
+CREATE TYPE canarytrigger as ENUM ('Channel', 'Role');
+CREATE TYPE canaryaction as ENUM ('Kick', 'Ban');
+
+CREATE TABLE canaries (
+       guild_id bytea,
+       trigger_id bytea,
+       trigger_type canarytrigger,
+       trigger_action canaryaction,
+       PRIMARY KEY (guild_id, trigger_id, trigger_type)
+);
+
+UPDATE suzu_table_metadata SET current_migration = 006;
