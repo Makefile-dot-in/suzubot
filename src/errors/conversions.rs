@@ -112,3 +112,9 @@ impl From<crate::remind::RemindContext> for Context {
         Context::Remind(source)
     }
 }
+
+impl From<crate::ban::BanContext> for Context {
+    fn from(source: crate::ban::BanContext) -> Self {
+        Context::Ban(source)
+    }
+}

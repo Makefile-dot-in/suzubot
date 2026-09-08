@@ -49,6 +49,7 @@ pub enum Context {
     Replication(crate::msgreplication::ReplicationErrorContext),
     Purge(crate::purge::PurgeErrorContext),
     Remind(crate::remind::RemindContext),
+    Ban(crate::ban::BanContext)
 }
 
 #[derive(Debug)]
@@ -65,6 +66,7 @@ pub enum Error {
     RoleNotFound,
     MemberNotFound,
     ChannelNotFound,
+    GuildNotFound(ser::GuildId),
     MessageAlreadyCrossposted,
     CannotCrosspostMessage,
     DateParseError(DateError),

@@ -1,4 +1,4 @@
-use crate::errors::Contextualizable;
+use crate::{errors::Contextualizable, linkable::Linkable};
 use poise::serenity_prelude as ser;
 use std::fmt::{self, Display};
 
@@ -25,6 +25,7 @@ impl Display for Context {
             Replication(repctx) => write!(f, "{repctx}"),
             Purge(purgectx) => write!(f, "{purgectx}"),
             Remind(remindctx) => write!(f, "{remindctx}"),
+            Ban(banctx) => write!(f, "{banctx}")
         }
     }
 }
@@ -58,6 +59,9 @@ impl Display for Error {
             RoleNotFound => write!(f, "Role not found"),
             MemberNotFound => write!(f, "Member not found"),
             ChannelNotFound => write!(f, "Channel not found"),
+            GuildNotFound(id) =>
+                write!(f, "Could not find [<guild>]({guild_link})",
+                       guild_link = id.link(())),
             MessageAlreadyCrossposted => write!(f, "Message already crossposted"),
             CannotCrosspostMessage => write!(f, "Cannot crosspost message"),
             DateParseError(e) => write!(f, "{e}"),

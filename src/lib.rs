@@ -20,10 +20,11 @@ pub const COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] = &[
     remind::remind,
     remind::reminders,
     emojisteal::emojisteal,
+    ban::ban
 ];
 
 pub const ADMIN_COMMANDS: &[fn() -> poise::Command<Data, SuzuError>] =
-    &[log::log, remind::admin::reminders, modmail::modmail];
+    &[log::log, remind::admin::reminders, modmail::modmail, ban::admin::ban];
 
 event_handlers! {
     log::log_event,
@@ -159,3 +160,4 @@ pub mod purge;
 pub mod remind;
 mod utils;
 pub mod webhook;
+pub mod ban;
